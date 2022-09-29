@@ -32,6 +32,7 @@
               <Premain-Class>io.type.pollution.agent.Agent</Premain-Class>
               <Agent-Class>io.type.pollution.agent.Agent</Agent-Class>
               <Can-Retransform-Classes>true</Can-Retransform-Classes>
+              <Boot-Class-Path>type-pollution-agent-${project.version}.jar</Boot-Class-Path>
             </manifestEntries>
           </archive>
         </configuration>

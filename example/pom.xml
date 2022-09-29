@@ -5,11 +5,11 @@
 
   <parent>
     <groupId>io.forked.franz</groupId>
-    <artifactId>contention-checker</artifactId>
+    <artifactId>type-pollution-parent</artifactId>
     <version>0.1-SNAPSHOT</version>
   </parent>
 
-  <artifactId>contention-example</artifactId>
+  <artifactId>type-pollution-example</artifactId>
   <version>0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
@@ -17,11 +17,12 @@
     <plugins>
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
+        <version>3.2.2</version>
         <configuration>
           <archive>
             <manifest>
               <addClasspath>true</addClasspath>
-              <mainClass>io.forked.franz.example.Main</mainClass>
+              <mainClass>io.type.pollution.example.Main</mainClass>
             </manifest>
           </archive>
         </configuration>

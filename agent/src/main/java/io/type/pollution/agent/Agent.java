@@ -1,4 +1,4 @@
-package io.forked.franz.agent;
+package io.type.pollution.agent;
 
 import javassist.CannotCompileException;
 import javassist.ClassPool;
@@ -25,7 +25,7 @@ public class Agent {
     }
 
     private static boolean filter(String s, String[] toInstrument) {
-        if (s.equals("io/forked/franz/agent/TraceInstanceOf")) {
+        if (s.equals("io/type/pollution/agent/TraceInstanceOf")) {
             return false;
         }
         if (toInstrument != null && toInstrument.length > 0) {
@@ -109,7 +109,7 @@ public class Agent {
                         public void edit(final Instanceof i) throws CannotCompileException {
                             final String replaced = "{" +
                                     "$_ = $proceed($$);" +
-                                    "io.forked.franz.agent.TraceInstanceOf.instanceOf($1, $type, $_);" +
+                                    "io.type.pollution.agent.TraceInstanceOf.instanceOf($1, $type, $_);" +
                                     "}";
                             i.replace(replaced);
                         }

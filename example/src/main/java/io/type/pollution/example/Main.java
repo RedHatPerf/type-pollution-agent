@@ -1,4 +1,4 @@
-package io.forked.franz.example;
+package io.type.pollution.example;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

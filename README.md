@@ -11,5 +11,5 @@ $ mvn package
 
 ```
 $ # From the root dir
-$ java -javaagent:agent/target/contention-agent-0.1-SNAPSHOT.jar -XX:-Inline -XX:-TieredCompilation -jar example/target/contention-example-0.1-SNAPSHOT.jar
+$ $ java -javaagent:agent/target/type-pollution-agent-0.1-SNAPSHOT.jar -XX:-Inline -XX:-TieredCompilation -jar example/target/type-pollution-example-0.1-SNAPSHOT.jar 
 ```

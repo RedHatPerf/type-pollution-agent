@@ -3,6 +3,7 @@ package io.type.pollution.agent;
 import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
+import javassist.LoaderClassPath;
 import javassist.expr.Cast;
 import javassist.expr.ExprEditor;
 import javassist.expr.Instanceof;
@@ -108,9 +109,9 @@ public class Agent {
                 byte[] transformedClass = null;
                 CtClass cl = null;
                 ClassPool pool = ClassPool.getDefault();
+                pool.appendClassPath(new LoaderClassPath(classLoader));
                 try {
                     cl = pool.makeClass(new java.io.ByteArrayInputStream(bytes));
-
                     cl.instrument(new ExprEditor() {
 
                         @Override

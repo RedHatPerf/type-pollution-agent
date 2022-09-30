@@ -3,6 +3,7 @@ package io.type.pollution.agent;
 import javassist.CannotCompileException;
 import javassist.ClassPool;
 import javassist.CtClass;
+import javassist.expr.Cast;
 import javassist.expr.ExprEditor;
 import javassist.expr.Instanceof;
 
@@ -24,7 +25,19 @@ public class Agent {
         startAgent(agentArgs, inst, true);
     }
 
-    private static boolean filter(String s, String[] toInstrument) {
+    /**
+     * This prevent
+     */
+    private static boolean safeFilter(String s, String[] toInstrument) {
+        if (s.startsWith("java/")) {
+            return false;
+        }
+        if (s.startsWith("sun/")) {
+            return false;
+        }
+        if (s.startsWith("javassist/")) {
+            return false;
+        }
         if (s.equals("io/type/pollution/agent/TraceInstanceOf")) {
             return false;
         }
@@ -49,7 +62,7 @@ public class Agent {
             final Class[] classes = inst.getAllLoadedClasses();
             final ArrayList<Class> filtered = new ArrayList<>();
             for (Class clazz : classes) {
-                if (filter(clazz.getName(), toInstrument)) {
+                if (safeFilter(clazz.getName(), toInstrument)) {
                     filtered.add(clazz);
                 }
             }
@@ -82,8 +95,8 @@ public class Agent {
         return new ClassFileTransformer() {
 
             @Override
-            public byte[] transform(ClassLoader classLoader, String s, Class<?> aClass, ProtectionDomain protectionDomain, byte[] bytes) throws IllegalClassFormatException {
-                if (!filter(s, toInstrument)) {
+            public byte[] transform(ClassLoader classLoader, final String s, Class<?> aClass, ProtectionDomain protectionDomain, byte[] bytes) throws IllegalClassFormatException {
+                if (!safeFilter(s, toInstrument)) {
                     return bytes;
                 }
                 byte[] transformedClass = null;
@@ -94,17 +107,15 @@ public class Agent {
 
                     cl.instrument(new ExprEditor() {
 
-                        /**
-                         * $0	null.
-                         * $1	The value on the left hand side of the original instanceof operator.
-                         * $_	The resulting value of the expression. The type of $_ is boolean.
-                         * $r	The type on the right hand side of the instanceof operator.
-                         * $type	A java.lang.Class object representing the type on the right hand side of the instanceof operator.
-                         * $proceed    	The name of a virtual method executing the original instanceof expression.
-                         * It takes one parameter (the type is java.lang.Object) and returns true
-                         * if the parameter value is an instance of the type on the right hand side of
-                         * the original instanceof operator. Otherwise, it returns false.
-                         */
+                        @Override
+                        public void edit(final Cast c) throws CannotCompileException {
+                            final String replaced = "{" +
+                                    "$_ = $proceed($$);" +
+                                    "io.type.pollution.agent.TraceInstanceOf.instanceOf($1, $type, true);" +
+                                    "}";
+                            c.replace(replaced);
+                        }
+
                         @Override
                         public void edit(final Instanceof i) throws CannotCompileException {
                             final String replaced = "{" +

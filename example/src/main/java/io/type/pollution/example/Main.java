@@ -30,9 +30,9 @@ public class Main {
             es.submit(() -> {
                 for (int j = 0; j != loopCount; j++) {
                     foo(b);
-                    foo(c);
                     goo(b);
-                    goo(c);
+                    castToI1(c);
+                    castToI2(c);
                 }
             });
         }
@@ -45,6 +45,14 @@ public class Main {
 
     public static boolean goo(I3 i) {
         return i instanceof I2;
+    }
+
+    public static I1 castToI1(Object o) {
+        return (I1) o;
+    }
+
+    public static I2 castToI2(Object o) {
+        return (I2) o;
     }
 
 }

@@ -32,7 +32,13 @@ public class Agent {
         if (s.startsWith("java/")) {
             return false;
         }
+        if (s.startsWith("jdk/")) {
+            return false;
+        }
         if (s.startsWith("sun/")) {
+            return false;
+        }
+        if (s.startsWith("com/sun/")) {
             return false;
         }
         if (s.startsWith("javassist/")) {

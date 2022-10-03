@@ -1,14 +1,8 @@
 package io.type.pollution.agent;
 
-import javassist.CannotCompileException;
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.LoaderClassPath;
-import javassist.expr.Cast;
-import javassist.expr.ExprEditor;
-import javassist.expr.Instanceof;
+import org.objectweb.asm.commons.InstructionAdapter;
+import org.objectweb.asm.*;
 
-import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.lang.instrument.Instrumentation;
@@ -46,6 +40,12 @@ public class Agent {
             return false;
         }
         if (s.equals("io/type/pollution/agent/TraceInstanceOf")) {
+            return false;
+        }
+        if (s.startsWith("org/jboss/logmanager")) {
+            return false;
+        }
+        if (s.startsWith("io/quarkus/bootstrap")) {
             return false;
         }
         if (toInstrument != null && toInstrument.length > 0) {
@@ -106,48 +106,57 @@ public class Agent {
                 if (!safeFilter(s, toInstrument)) {
                     return bytes;
                 }
-                byte[] transformedClass = null;
-                CtClass cl = null;
-                ClassPool pool = ClassPool.getDefault();
-                pool.appendClassPath(new LoaderClassPath(classLoader));
-                try {
-                    cl = pool.makeClass(new java.io.ByteArrayInputStream(bytes));
-                    cl.instrument(new ExprEditor() {
-
-                        @Override
-                        public void edit(final Cast c) throws CannotCompileException {
-                            final String replaced = "{" +
-                                    "$_ = $proceed($$);" +
-                                    "io.type.pollution.agent.TraceInstanceOf.instanceOf($1, $type, true);" +
-                                    "}";
-                            c.replace(replaced);
-                        }
-
-                        @Override
-                        public void edit(final Instanceof i) throws CannotCompileException {
-                            final String replaced = "{" +
-                                    "$_ = $proceed($$);" +
-                                    "io.type.pollution.agent.TraceInstanceOf.instanceOf($1, $type, $_);" +
-                                    "}";
-                            i.replace(replaced);
-                        }
-                    });
-                    // search all methods (including static/private) and replace instanceof bytes codes
-
-                    // Generate changed bytecode
-                    transformedClass = cl.toBytecode();
-
-                } catch (IOException | CannotCompileException e) {
-                    e.printStackTrace();
-                } finally {
-                    if (cl != null) {
-                        cl.detach();
-                    }
-                }
-
-                return transformedClass;
+                ClassReader classReader = new ClassReader(bytes);
+                ClassWriter classWriter = new ClassWriter(classReader, ClassWriter.COMPUTE_FRAMES);
+                classReader.accept(new TypePollutionClassVisitor(Opcodes.ASM5, classWriter), ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
+                return classWriter.toByteArray();
             }
         };
+    }
+
+    private static class TypePollutionInstructionAdapter extends InstructionAdapter {
+
+        protected TypePollutionInstructionAdapter(int api, MethodVisitor methodVisitor) {
+            super(api, methodVisitor);
+        }
+
+        @Override
+        public void checkcast(final Type type) {
+            mv.visitInsn(Opcodes.DUP);
+            mv.visitLdcInsn(type);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                    Type.getInternalName(TraceInstanceOf.class),
+                    "traceCheckcast",
+                    "(Ljava/lang/Object;Ljava/lang/Class;)V", false);
+            super.checkcast(type);
+        }
+
+        @Override
+        public void instanceOf(final Type type) {
+            mv.visitLdcInsn(type);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                    Type.getInternalName(TraceInstanceOf.class),
+                    "traceInstanceOf",
+                    "(Ljava/lang/Object;Ljava/lang/Class;)Z", false);
+        }
+    }
+
+    private static class TypePollutionClassVisitor extends ClassVisitor {
+
+
+        private TypePollutionClassVisitor(int api, ClassWriter classWriter) {
+            super(api, classWriter);
+        }
+
+
+        @Override
+        public MethodVisitor visitMethod(int flags, String name,
+                                         String desc, String signature, String[] exceptions) {
+            MethodVisitor baseMethodVisitor =
+                    super.visitMethod(flags, name, desc,
+                            signature, exceptions);
+            return new TypePollutionInstructionAdapter(api, baseMethodVisitor);
+        }
     }
 
 

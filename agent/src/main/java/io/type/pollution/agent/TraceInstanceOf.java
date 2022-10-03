@@ -10,10 +10,10 @@ public class TraceInstanceOf {
     public static final class UpdateCounter {
 
         private final AtomicLong updateCount = new AtomicLong();
-        private final AtomicReference<Class<?>> lastSeenInterface = new AtomicReference<>();
+        private final AtomicReference<Class> lastSeenInterface = new AtomicReference<>();
 
-        private void lazyUpdateCount(Class<?> seenClazz) {
-            final AtomicReference<Class<?>> lastSeenInterface = this.lastSeenInterface;
+        private void lazyUpdateCount(Class seenClazz) {
+            final AtomicReference<Class> lastSeenInterface = this.lastSeenInterface;
             if (!seenClazz.equals(lastSeenInterface.get())) {
                 final AtomicLong updateCount = this.updateCount;
                 // not important if we loose some samples
@@ -23,10 +23,10 @@ public class TraceInstanceOf {
         }
 
         public static class Snapshot implements Comparable<Snapshot> {
-            public final Class<?> clazz;
+            public final Class clazz;
             public final long updateCount;
 
-            private Snapshot(Class<?> clazz, long updateCount) {
+            private Snapshot(Class clazz, long updateCount) {
                 this.clazz = clazz;
                 this.updateCount = updateCount;
             }
@@ -37,41 +37,69 @@ public class TraceInstanceOf {
             }
         }
 
-        private Snapshot mementoOf(Class<?> clazz) {
+        private Snapshot mementoOf(Class clazz) {
             return new UpdateCounter.Snapshot(clazz, updateCount.get());
         }
 
     }
 
-    private static final ConcurrentHashMap<Class<?>, UpdateCounter> COUNTER_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Class, UpdateCounter> COUNTER_CACHE = new ConcurrentHashMap<>();
 
-    /**
-     * o instanceof interfaceClazz
-     */
-    public static void instanceOf(Object o, Class<?> interfaceClazz, boolean result) {
-        if (o == null) {
+
+    public static boolean traceInstanceOf(Object o, Class interfaceClazz) {
+        final boolean result = interfaceClazz.isInstance(o);
+        if (!result) {
+            return false;
+        }
+        final Class concreteClass = o.getClass();
+        // unnecessary tracing
+        if (!interfaceClazz.isInterface()
+                || concreteClass.isInterface()
+                || concreteClass.isArray()
+                || concreteClass.isAnnotation()) {
+            return true;
+        }
+        UpdateCounter counter = COUNTER_CACHE.get(concreteClass);
+        if (counter == null) {
+            try {
+                final UpdateCounter newCounter = new UpdateCounter();
+                counter = COUNTER_CACHE.putIfAbsent(concreteClass, newCounter);
+                if (counter == null) {
+                    counter = newCounter;
+                }
+            } catch (Throwable ignore) {
+                return true;
+            }
+        }
+        counter.lazyUpdateCount(interfaceClazz);
+        return true;
+    }
+
+    public static void traceCheckcast(Object o, Class interfaceClazz) {
+        if (!interfaceClazz.isInstance(o)) {
             return;
         }
-        // maybe others?
-        final Class<?> concreteClass = o.getClass();
-        // maybe others are not interesting
+        final Class concreteClass = o.getClass();
+        // unnecessary tracing
         if (!interfaceClazz.isInterface()
                 || concreteClass.isInterface()
                 || concreteClass.isArray()
                 || concreteClass.isAnnotation()) {
             return;
         }
-        if (result) {
-            UpdateCounter counter = COUNTER_CACHE.get(concreteClass);
-            if (counter == null) {
+        UpdateCounter counter = COUNTER_CACHE.get(concreteClass);
+        if (counter == null) {
+            try {
                 final UpdateCounter newCounter = new UpdateCounter();
                 counter = COUNTER_CACHE.putIfAbsent(concreteClass, newCounter);
                 if (counter == null) {
                     counter = newCounter;
                 }
+            } catch (Throwable ignore) {
+                return;
             }
-            counter.lazyUpdateCount(interfaceClazz);
         }
+        counter.lazyUpdateCount(interfaceClazz);
     }
 
     public static Collection<UpdateCounter.Snapshot> orderedSnapshot() {

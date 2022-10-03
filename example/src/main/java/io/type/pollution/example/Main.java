@@ -31,8 +31,8 @@ public class Main {
                 for (int j = 0; j != loopCount; j++) {
                     foo(b);
                     goo(b);
-                    castToI1(c);
-                    castToI2(c);
+                    I1 i1 = castToI1(c);
+                    I2 i2 = castToI2(c);
                 }
             });
         }

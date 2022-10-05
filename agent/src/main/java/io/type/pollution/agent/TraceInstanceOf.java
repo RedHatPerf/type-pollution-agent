@@ -105,7 +105,10 @@ public class TraceInstanceOf {
     public static Collection<UpdateCounter.Snapshot> orderedSnapshot() {
         List<UpdateCounter.Snapshot> snapshots = new ArrayList<>(COUNTER_CACHE.size());
         COUNTER_CACHE.forEach((aClass, updateCounter) -> {
-            snapshots.add(updateCounter.mementoOf(aClass));
+            UpdateCounter.Snapshot snapshot = updateCounter.mementoOf(aClass);
+            if (snapshot.updateCount > 1) {
+                snapshots.add(snapshot);
+            }
         });
         snapshots.sort(Comparator.reverseOrder());
         return snapshots;

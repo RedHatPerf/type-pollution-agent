@@ -24,6 +24,11 @@
       <artifactId>asm-commons</artifactId>
       <version>9.4</version>
     </dependency>
+    <dependency>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy</artifactId>
+      <version>1.12.13</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -35,7 +40,6 @@
           <archive>
             <manifestEntries>
               <Premain-Class>io.type.pollution.agent.Agent</Premain-Class>
-              <Agent-Class>io.type.pollution.agent.Agent</Agent-Class>
               <Can-Retransform-Classes>true</Can-Retransform-Classes>
             </manifestEntries>
           </archive>

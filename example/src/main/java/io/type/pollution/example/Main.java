@@ -4,18 +4,41 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 interface I1 {
+    void do1();
 }
 
 interface I2 {
+
+    void do2();
 }
 
 interface I3 extends I1, I2 {
 }
 
 class B implements I3 {
+
+    @Override
+    public void do2() {
+
+    }
+
+    @Override
+    public void do1() {
+
+    }
 }
 
 class C implements I3 {
+
+    @Override
+    public void do2() {
+
+    }
+
+    @Override
+    public void do1() {
+
+    }
 }
 
 public class Main {
@@ -31,8 +54,8 @@ public class Main {
                 for (int j = 0; j != loopCount; j++) {
                     foo(b);
                     goo(b);
-                    I1 i1 = castToI1(c);
-                    I2 i2 = castToI2(c);
+                    castToI1(c);
+                    castToI2(c);
                 }
             });
         }
@@ -47,12 +70,12 @@ public class Main {
         return i instanceof I2;
     }
 
-    public static I1 castToI1(Object o) {
-        return (I1) o;
+    public static void castToI1(Object o) {
+        ((I1) o).do1();
     }
 
-    public static I2 castToI2(Object o) {
-        return (I2) o;
+    public static void castToI2(Object o) {
+        ((I2) o).do2();
     }
 
 }

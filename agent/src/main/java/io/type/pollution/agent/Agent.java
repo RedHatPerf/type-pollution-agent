@@ -37,8 +37,8 @@ public class Agent {
                 .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
                 .type(acceptedTypes
                         .and(not(nameStartsWith("net.bytebuddy.")))
-                        .and(not(nameStartsWith("com.sun"))))
-                .and(not(named("io.type.pollution.agent.TraceInstanceOf")))
+                        .and(not(nameStartsWith("com.sun")))
+                        .and(not(named("io.type.pollution.agent.TraceInstanceOf"))))
                 .transform((builder,
                             typeDescription,
                             classLoader,

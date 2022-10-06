@@ -2,3 +2,6 @@
 /agent/target/
 /example/target/
 /.idea/
+/agent/type-pollution-agent.iml
+/example/type-pollution-example.iml
+/type-pollution-parent.iml

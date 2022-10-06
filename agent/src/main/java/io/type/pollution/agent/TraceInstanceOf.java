@@ -2,6 +2,7 @@ package io.type.pollution.agent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -11,23 +12,39 @@ public class TraceInstanceOf {
 
         private final AtomicLong updateCount = new AtomicLong();
         private final AtomicReference<Class> lastSeenInterface = new AtomicReference<>();
+        private final CopyOnWriteArraySet<String> topStackTraces = new CopyOnWriteArraySet<>();
+        private final CopyOnWriteArraySet<Class> interfacesSeen = new CopyOnWriteArraySet<>();
 
         private void lazyUpdateCount(Class seenClazz) {
             final AtomicReference<Class> lastSeenInterface = this.lastSeenInterface;
-            if (!seenClazz.equals(lastSeenInterface.get())) {
+            final Class lastSeen = lastSeenInterface.get();
+            if (!seenClazz.equals(lastSeen)) {
                 final AtomicLong updateCount = this.updateCount;
                 // not important if we loose some samples
                 lastSeenInterface.lazySet(seenClazz);
-                updateCount.lazySet(updateCount.get() + 1);
+                if (lastSeen == null) {
+                    updateCount.lazySet(1);
+                } else {
+                    updateCount.lazySet(updateCount.get() + 1);
+                }
+                if (lastSeen != null) {
+                    final String stackFrame = StackWalker.getInstance().walk(stream -> stream.skip(3).findFirst()).get().toString();
+                    topStackTraces.add(stackFrame);
+                    interfacesSeen.add(seenClazz);
+                }
             }
         }
 
         public static class Snapshot implements Comparable<Snapshot> {
             public final Class clazz;
+            public final Class[] seen;
+            public final String[] topStackTraces;
             public final long updateCount;
 
-            private Snapshot(Class clazz, long updateCount) {
+            private Snapshot(Class clazz, Class[] seen, String[] topStackTraces, long updateCount) {
                 this.clazz = clazz;
+                this.seen = seen;
+                this.topStackTraces = topStackTraces;
                 this.updateCount = updateCount;
             }
 
@@ -38,7 +55,7 @@ public class TraceInstanceOf {
         }
 
         private Snapshot mementoOf(Class clazz) {
-            return new UpdateCounter.Snapshot(clazz, updateCount.get());
+            return new UpdateCounter.Snapshot(clazz, interfacesSeen.toArray(new Class[0]), topStackTraces.toArray(new String[0]), updateCount.get());
         }
 
     }
@@ -105,9 +122,8 @@ public class TraceInstanceOf {
     public static Collection<UpdateCounter.Snapshot> orderedSnapshot() {
         List<UpdateCounter.Snapshot> snapshots = new ArrayList<>(COUNTER_CACHE.size());
         COUNTER_CACHE.forEach((aClass, updateCounter) -> {
-            UpdateCounter.Snapshot snapshot = updateCounter.mementoOf(aClass);
-            if (snapshot.updateCount > 1) {
-                snapshots.add(snapshot);
+            if (updateCounter.updateCount.get() > 1) {
+                snapshots.add(updateCounter.mementoOf(aClass));
             }
         });
         snapshots.sort(Comparator.reverseOrder());

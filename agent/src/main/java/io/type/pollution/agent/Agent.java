@@ -20,10 +20,29 @@ public class Agent {
     public static void premain(String agentArgs, Instrumentation inst) {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             StringBuilder summary = new StringBuilder();
-            summary.append("Class,UpdateCount\n");
+            summary.append("--------------------------\n");
+            summary.append("Type Pollution Statistics:\n");
+            class MutableInt {
+                int rowId = 0;
+            }
+            MutableInt mutableInt = new MutableInt();
             TraceInstanceOf.orderedSnapshot().forEach(snapshot -> {
-                summary.append(snapshot.clazz.getName() + "," + snapshot.updateCount + "\n");
+                mutableInt.rowId++;
+                summary.append("--------------------------\n");
+                summary.append(mutableInt.rowId).append(":\t").append(snapshot.clazz.getName()).append('\n');
+                summary.append("Count:\t").append(snapshot.updateCount).append('\n');
+                summary.append("Types:\n");
+                for (Class seen : snapshot.seen) {
+                    summary.append("\t").append(seen.getName()).append('\n');
+                }
+                summary.append("Traces:\n");
+                for (String stack : snapshot.topStackTraces) {
+                    summary.append("\t").append(stack).append('\n');
+                }
             });
+            if (mutableInt.rowId > 0) {
+                summary.append("--------------------------\n");
+            }
             System.out.println(summary);
         }));
         final String[] agentArgsValues = agentArgs == null ? null : agentArgs.split(",");
@@ -35,6 +54,7 @@ public class Agent {
         new AgentBuilder.Default()
                 .with(AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly())
                 .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
+                .with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
                 .type(acceptedTypes
                         .and(not(nameStartsWith("net.bytebuddy.")))
                         .and(not(nameStartsWith("com.sun")))

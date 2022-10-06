@@ -8,40 +8,14 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class TraceInstanceOf {
 
-    private static final long MILLIS = 10;
-    private static volatile long GLOBAL_SAMPLING_TICK = System.nanoTime();
-    private static final Thread METRONOME = new Thread(() -> {
-        final Thread current = Thread.currentThread();
-        while (!current.isInterrupted()) {
-            try {
-                Thread.sleep(MILLIS);
-            } catch (InterruptedException e) {
-                // let's stop
-                return;
-            }
-            GLOBAL_SAMPLING_TICK = System.nanoTime();
-        }
-
-    });
-
-    public static void startMetronome() {
-        METRONOME.setDaemon(true);
-        METRONOME.setName("type-pollution-metronome");
-        METRONOME.start();
-    }
-
     public static final class UpdateCounter {
-
         private static final AtomicLongFieldUpdater<UpdateCounter> UPDATE_COUNT = AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "updateCount");
-
-        private static final AtomicLongFieldUpdater<UpdateCounter> SAMPLING_TICK_UPDATER = AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "lastSamplingTick");
         private volatile long updateCount;
-        private volatile long lastSamplingTick = System.nanoTime();
         private final AtomicReference<Class> lastSeenInterface = new AtomicReference<>();
         private final CopyOnWriteArraySet<String> topStackTraces = new CopyOnWriteArraySet<>();
         private final CopyOnWriteArraySet<Class> interfacesSeen = new CopyOnWriteArraySet<>();
 
-        private void lazyUpdateCount(Class seenClazz) {
+        private void lazyUpdateCount(Class seenClazz, String trace) {
             final AtomicReference<Class> lastSeenInterface = this.lastSeenInterface;
             final Class lastSeen = lastSeenInterface.get();
             if (!seenClazz.equals(lastSeen)) {
@@ -54,15 +28,7 @@ public class TraceInstanceOf {
                 }
                 if (lastSeen != null) {
                     interfacesSeen.add(seenClazz);
-                    final long tick = lastSamplingTick;
-                    final long globalTick = GLOBAL_SAMPLING_TICK;
-                    if (tick - globalTick < 0) {
-                        // move forward our tick
-                        if (SAMPLING_TICK_UPDATER.compareAndSet(this, tick, globalTick)) {
-                            final String stackFrame = StackWalker.getInstance().walk(stream -> stream.skip(3).findFirst()).get().toString();
-                            topStackTraces.add(stackFrame);
-                        }
-                    }
+                    topStackTraces.add(trace);
                 }
             }
         }
@@ -95,7 +61,7 @@ public class TraceInstanceOf {
     private static final ConcurrentHashMap<Class, UpdateCounter> COUNTER_CACHE = new ConcurrentHashMap<>();
 
 
-    public static boolean traceInstanceOf(Object o, Class interfaceClazz) {
+    public static boolean traceInstanceOf(Object o, Class interfaceClazz, String trace) {
         final boolean result = interfaceClazz.isInstance(o);
         if (!result) {
             return false;
@@ -120,11 +86,11 @@ public class TraceInstanceOf {
                 return true;
             }
         }
-        counter.lazyUpdateCount(interfaceClazz);
+        counter.lazyUpdateCount(interfaceClazz, trace);
         return true;
     }
 
-    public static void traceCheckcast(Object o, Class interfaceClazz) {
+    public static void traceCheckcast(Object o, Class interfaceClazz, String trace) {
         if (!interfaceClazz.isInstance(o)) {
             return;
         }
@@ -148,7 +114,7 @@ public class TraceInstanceOf {
                 return;
             }
         }
-        counter.lazyUpdateCount(interfaceClazz);
+        counter.lazyUpdateCount(interfaceClazz, trace);
     }
 
     public static Collection<UpdateCounter.Snapshot> orderedSnapshot() {

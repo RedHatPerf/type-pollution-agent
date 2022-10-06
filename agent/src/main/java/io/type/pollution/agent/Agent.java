@@ -18,7 +18,6 @@ import static net.bytebuddy.matcher.ElementMatchers.*;
 public class Agent {
 
     public static void premain(String agentArgs, Instrumentation inst) {
-        TraceInstanceOf.startMetronome();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             StringBuilder summary = new StringBuilder();
             summary.append("--------------------------\n");

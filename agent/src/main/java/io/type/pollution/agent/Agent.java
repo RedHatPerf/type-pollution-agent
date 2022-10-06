@@ -7,9 +7,9 @@ import net.bytebuddy.description.field.FieldList;
 import net.bytebuddy.description.method.MethodList;
 import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.implementation.Implementation;
+import net.bytebuddy.jar.asm.ClassWriter;
 import net.bytebuddy.matcher.ElementMatcher;
 import net.bytebuddy.pool.TypePool;
-import org.objectweb.asm.*;
 
 import java.lang.instrument.Instrumentation;
 
@@ -52,7 +52,7 @@ public class Agent {
 
                     @Override
                     public int mergeReader(int flags) {
-                        return flags | ClassWriter.COMPUTE_FRAMES;
+                        return flags;
                     }
 
                     @Override

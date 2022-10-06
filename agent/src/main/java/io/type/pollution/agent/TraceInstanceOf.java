@@ -3,14 +3,40 @@ package io.type.pollution.agent;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class TraceInstanceOf {
 
+    private static final long MILLIS = 10;
+    private static volatile long GLOBAL_SAMPLING_TICK = System.nanoTime();
+    private static final Thread METRONOME = new Thread(() -> {
+        final Thread current = Thread.currentThread();
+        while (!current.isInterrupted()) {
+            try {
+                Thread.sleep(MILLIS);
+            } catch (InterruptedException e) {
+                // let's stop
+                return;
+            }
+            GLOBAL_SAMPLING_TICK = System.nanoTime();
+        }
+
+    });
+
+    public static void startMetronome() {
+        METRONOME.setDaemon(true);
+        METRONOME.setName("type-pollution-metronome");
+        METRONOME.start();
+    }
+
     public static final class UpdateCounter {
 
-        private final AtomicLong updateCount = new AtomicLong();
+        private static final AtomicLongFieldUpdater<UpdateCounter> UPDATE_COUNT = AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "updateCount");
+
+        private static final AtomicLongFieldUpdater<UpdateCounter> SAMPLING_TICK_UPDATER = AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "lastSamplingTick");
+        private volatile long updateCount;
+        private volatile long lastSamplingTick = System.nanoTime();
         private final AtomicReference<Class> lastSeenInterface = new AtomicReference<>();
         private final CopyOnWriteArraySet<String> topStackTraces = new CopyOnWriteArraySet<>();
         private final CopyOnWriteArraySet<Class> interfacesSeen = new CopyOnWriteArraySet<>();
@@ -19,18 +45,24 @@ public class TraceInstanceOf {
             final AtomicReference<Class> lastSeenInterface = this.lastSeenInterface;
             final Class lastSeen = lastSeenInterface.get();
             if (!seenClazz.equals(lastSeen)) {
-                final AtomicLong updateCount = this.updateCount;
                 // not important if we loose some samples
                 lastSeenInterface.lazySet(seenClazz);
                 if (lastSeen == null) {
-                    updateCount.lazySet(1);
+                    UPDATE_COUNT.lazySet(this, 1);
                 } else {
-                    updateCount.lazySet(updateCount.get() + 1);
+                    UPDATE_COUNT.lazySet(this, updateCount + 1);
                 }
                 if (lastSeen != null) {
-                    final String stackFrame = StackWalker.getInstance().walk(stream -> stream.skip(3).findFirst()).get().toString();
-                    topStackTraces.add(stackFrame);
                     interfacesSeen.add(seenClazz);
+                    final long tick = lastSamplingTick;
+                    final long globalTick = GLOBAL_SAMPLING_TICK;
+                    if (tick - globalTick < 0) {
+                        // move forward our tick
+                        if (SAMPLING_TICK_UPDATER.compareAndSet(this, tick, globalTick)) {
+                            final String stackFrame = StackWalker.getInstance().walk(stream -> stream.skip(3).findFirst()).get().toString();
+                            topStackTraces.add(stackFrame);
+                        }
+                    }
                 }
             }
         }
@@ -55,7 +87,7 @@ public class TraceInstanceOf {
         }
 
         private Snapshot mementoOf(Class clazz) {
-            return new UpdateCounter.Snapshot(clazz, interfacesSeen.toArray(new Class[0]), topStackTraces.toArray(new String[0]), updateCount.get());
+            return new UpdateCounter.Snapshot(clazz, interfacesSeen.toArray(new Class[0]), topStackTraces.toArray(new String[0]), updateCount);
         }
 
     }
@@ -122,7 +154,7 @@ public class TraceInstanceOf {
     public static Collection<UpdateCounter.Snapshot> orderedSnapshot() {
         List<UpdateCounter.Snapshot> snapshots = new ArrayList<>(COUNTER_CACHE.size());
         COUNTER_CACHE.forEach((aClass, updateCounter) -> {
-            if (updateCounter.updateCount.get() > 1) {
+            if (updateCounter.updateCount > 1) {
                 snapshots.add(updateCounter.mementoOf(aClass));
             }
         });

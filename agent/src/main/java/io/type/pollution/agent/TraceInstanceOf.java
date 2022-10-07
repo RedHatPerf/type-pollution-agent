@@ -2,6 +2,7 @@ package io.type.pollution.agent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
@@ -9,10 +10,15 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TraceInstanceOf {
 
     public static final class UpdateCounter {
+        private final Class clazz;
         private static final AtomicLongFieldUpdater<UpdateCounter> UPDATE_COUNT = AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "updateCount");
         private volatile long updateCount;
         private final AtomicReference<Class> lastSeenInterface = new AtomicReference<>();
         private final CopyOnWriteArraySet<String> topStackTraces = new CopyOnWriteArraySet<>();
+
+        private UpdateCounter(Class clazz) {
+            this.clazz = clazz;
+        }
 
         private void lazyUpdateCount(Class seenClazz, String trace) {
             final AtomicReference<Class> lastSeenInterface = this.lastSeenInterface;
@@ -53,7 +59,7 @@ public class TraceInstanceOf {
             }
         }
 
-        private Snapshot mementoOf(Class clazz) {
+        private Snapshot memento() {
             final String[] traces = topStackTraces.toArray(new String[0]);
             final Set<Class> interfacesTypes = new HashSet<>(traces.length);
             for (String trace : traces) {
@@ -64,7 +70,16 @@ public class TraceInstanceOf {
 
     }
 
-    private static final ConcurrentHashMap<Class, UpdateCounter> COUNTER_CACHE = new ConcurrentHashMap<>();
+    private static final CopyOnWriteArrayList<UpdateCounter> COUNTERS = new CopyOnWriteArrayList<>();
+    private static final ClassValue<UpdateCounter> COUNTER_CACHE = new ClassValue<>() {
+        @Override
+        protected UpdateCounter computeValue(Class<?> aClass) {
+            final UpdateCounter updateCounter = new UpdateCounter(aClass);
+            COUNTERS.add(updateCounter);
+            return updateCounter;
+        }
+    };
+
     private static final ConcurrentHashMap<String, Class> INTERFACE_PER_TRACE = new ConcurrentHashMap<>();
 
 
@@ -81,19 +96,7 @@ public class TraceInstanceOf {
                 || concreteClass.isAnnotation()) {
             return true;
         }
-        UpdateCounter counter = COUNTER_CACHE.get(concreteClass);
-        if (counter == null) {
-            try {
-                final UpdateCounter newCounter = new UpdateCounter();
-                counter = COUNTER_CACHE.putIfAbsent(concreteClass, newCounter);
-                if (counter == null) {
-                    counter = newCounter;
-                }
-            } catch (Throwable ignore) {
-                return true;
-            }
-        }
-        counter.lazyUpdateCount(interfaceClazz, trace);
+        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
         return true;
     }
 
@@ -109,19 +112,7 @@ public class TraceInstanceOf {
                 || concreteClass.isAnnotation()) {
             return;
         }
-        UpdateCounter counter = COUNTER_CACHE.get(concreteClass);
-        if (counter == null) {
-            try {
-                final UpdateCounter newCounter = new UpdateCounter();
-                counter = COUNTER_CACHE.putIfAbsent(concreteClass, newCounter);
-                if (counter == null) {
-                    counter = newCounter;
-                }
-            } catch (Throwable ignore) {
-                return;
-            }
-        }
-        counter.lazyUpdateCount(interfaceClazz, trace);
+        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
     }
 
     private static class TyeProfile {
@@ -181,11 +172,12 @@ public class TraceInstanceOf {
     }
 
     public static Collection<UpdateCounter.Snapshot> orderedSnapshot(final boolean cleanup) {
-        ArrayList<UpdateCounter.Snapshot> snapshots = new ArrayList<>(COUNTER_CACHE.size());
-        final IdentityHashMap<String, TyeProfile> tracesPerConcreteType = cleanup ? new IdentityHashMap<>(COUNTER_CACHE.size()) : null;
-        COUNTER_CACHE.forEach((aClass, updateCounter) -> {
+        final int size = COUNTERS.size();
+        ArrayList<UpdateCounter.Snapshot> snapshots = new ArrayList<>(size);
+        final IdentityHashMap<String, TyeProfile> tracesPerConcreteType = cleanup ? new IdentityHashMap<>(size) : null;
+        COUNTERS.forEach((updateCounter) -> {
             if (updateCounter.updateCount > 1) {
-                final UpdateCounter.Snapshot snapshot = updateCounter.mementoOf(aClass);
+                final UpdateCounter.Snapshot snapshot = updateCounter.memento();
                 snapshots.add(snapshot);
                 if (cleanup) {
                     populateTraces(tracesPerConcreteType, snapshot.topStackTraces);

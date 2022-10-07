@@ -143,7 +143,7 @@ public class TraceInstanceOf {
     private static <T> boolean fastRemove(ArrayList<T> elements, int index) {
         final int size = elements.size();
         final int last = size - 1;
-        if (size == last) {
+        if (index == last) {
             elements.remove(index);
             return false;
         }

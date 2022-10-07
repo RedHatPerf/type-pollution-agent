@@ -176,8 +176,9 @@ public class TraceInstanceOf {
         ArrayList<UpdateCounter.Snapshot> snapshots = new ArrayList<>(size);
         final IdentityHashMap<String, TyeProfile> tracesPerConcreteType = cleanup ? new IdentityHashMap<>(size) : null;
         COUNTERS.forEach((updateCounter) -> {
-            if (updateCounter.updateCount > 1) {
+            if (updateCounter.updateCount > 1 && updateCounter.topStackTraces.size() > 1) {
                 final UpdateCounter.Snapshot snapshot = updateCounter.memento();
+                // the update count and trace collecting is lazy; let's skip malformed cases
                 snapshots.add(snapshot);
                 if (cleanup) {
                     populateTraces(tracesPerConcreteType, snapshot.topStackTraces);

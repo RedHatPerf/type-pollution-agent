@@ -60,7 +60,7 @@ public class Agent {
                 .type(acceptedTypes
                         .and(not(nameStartsWith("net.bytebuddy.")))
                         .and(not(nameStartsWith("com.sun")))
-                        .and(not(named("io.type.pollution.agent.TraceInstanceOf"))))
+                        .and(not(nameStartsWith("io.type.pollution.agent"))))
                 .transform((builder,
                             typeDescription,
                             classLoader,

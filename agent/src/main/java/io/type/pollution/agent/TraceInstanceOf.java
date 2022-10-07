@@ -13,7 +13,6 @@ public class TraceInstanceOf {
         private volatile long updateCount;
         private final AtomicReference<Class> lastSeenInterface = new AtomicReference<>();
         private final CopyOnWriteArraySet<String> topStackTraces = new CopyOnWriteArraySet<>();
-        private final CopyOnWriteArraySet<Class> interfacesSeen = new CopyOnWriteArraySet<>();
 
         private void lazyUpdateCount(Class seenClazz, String trace) {
             final AtomicReference<Class> lastSeenInterface = this.lastSeenInterface;
@@ -27,8 +26,10 @@ public class TraceInstanceOf {
                     UPDATE_COUNT.lazySet(this, updateCount + 1);
                 }
                 if (lastSeen != null) {
-                    interfacesSeen.add(seenClazz);
-                    topStackTraces.add(trace);
+                    final boolean firstTimeAdded = topStackTraces.add(trace);
+                    if (firstTimeAdded) {
+                        INTERFACE_PER_TRACE.putIfAbsent(trace, seenClazz);
+                    }
                 }
             }
         }
@@ -53,12 +54,18 @@ public class TraceInstanceOf {
         }
 
         private Snapshot mementoOf(Class clazz) {
-            return new UpdateCounter.Snapshot(clazz, interfacesSeen.toArray(new Class[0]), topStackTraces.toArray(new String[0]), updateCount);
+            final String[] traces = topStackTraces.toArray(new String[0]);
+            final Set<Class> interfacesTypes = new HashSet<>(traces.length);
+            for (String trace : traces) {
+                interfacesTypes.add(INTERFACE_PER_TRACE.get(trace));
+            }
+            return new UpdateCounter.Snapshot(clazz, interfacesTypes.toArray(new Class[0]), topStackTraces.toArray(new String[0]), updateCount);
         }
 
     }
 
     private static final ConcurrentHashMap<Class, UpdateCounter> COUNTER_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Class> INTERFACE_PER_TRACE = new ConcurrentHashMap<>();
 
 
     public static boolean traceInstanceOf(Object o, Class interfaceClazz, String trace) {

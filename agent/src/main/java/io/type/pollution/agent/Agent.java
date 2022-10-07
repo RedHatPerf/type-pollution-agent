@@ -17,6 +17,8 @@ import static net.bytebuddy.matcher.ElementMatchers.*;
 
 public class Agent {
 
+    private static final boolean ENABLE_STATISTICS_CLEANUP =  Boolean.getBoolean("io.type.pollution.cleanup");
+
     public static void premain(String agentArgs, Instrumentation inst) {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             StringBuilder summary = new StringBuilder();
@@ -26,7 +28,7 @@ public class Agent {
                 int rowId = 0;
             }
             MutableInt mutableInt = new MutableInt();
-            TraceInstanceOf.orderedSnapshot().forEach(snapshot -> {
+            TraceInstanceOf.orderedSnapshot(ENABLE_STATISTICS_CLEANUP).forEach(snapshot -> {
                 mutableInt.rowId++;
                 summary.append("--------------------------\n");
                 summary.append(mutableInt.rowId).append(":\t").append(snapshot.clazz.getName()).append('\n');
@@ -42,8 +44,8 @@ public class Agent {
             });
             if (mutableInt.rowId > 0) {
                 summary.append("--------------------------\n");
+                System.out.println(summary);
             }
-            System.out.println(summary);
         }));
         final String[] agentArgsValues = agentArgs == null ? null : agentArgs.split(",");
         ElementMatcher.Junction<? super TypeDescription> acceptedTypes = any();

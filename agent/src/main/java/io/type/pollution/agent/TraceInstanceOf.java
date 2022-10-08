@@ -4,15 +4,20 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public class TraceInstanceOf {
 
     public static final class UpdateCounter {
+
+        private static final AtomicReferenceFieldUpdater<UpdateCounter, Class> LAST_SEEN_INTERFACE_UPDATER =
+                AtomicReferenceFieldUpdater.newUpdater(UpdateCounter.class, Class.class, "lastSeenInterface");
+
+        private static final AtomicLongFieldUpdater<UpdateCounter> UPDATE_COUNT =
+                AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "updateCount");
         private final Class clazz;
-        private static final AtomicLongFieldUpdater<UpdateCounter> UPDATE_COUNT = AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "updateCount");
         private volatile long updateCount;
-        private final AtomicReference<Class> lastSeenInterface = new AtomicReference<>();
+        private volatile Class lastSeenInterface = null;
         private final CopyOnWriteArraySet<String> topStackTraces = new CopyOnWriteArraySet<>();
 
         private UpdateCounter(Class clazz) {
@@ -20,11 +25,10 @@ public class TraceInstanceOf {
         }
 
         private void lazyUpdateCount(Class seenClazz, String trace) {
-            final AtomicReference<Class> lastSeenInterface = this.lastSeenInterface;
-            final Class lastSeen = lastSeenInterface.get();
+            final Class lastSeen = lastSeenInterface;
             if (!seenClazz.equals(lastSeen)) {
                 // not important if we loose some samples
-                lastSeenInterface.lazySet(seenClazz);
+                LAST_SEEN_INTERFACE_UPDATER.lazySet(this, seenClazz);
                 if (lastSeen == null) {
                     UPDATE_COUNT.lazySet(this, 1);
                 } else {

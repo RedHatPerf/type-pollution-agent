@@ -2,7 +2,6 @@ package io.type.pollution.agent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,7 +69,7 @@ public class TraceInstanceOf {
 
     }
 
-    private static final CopyOnWriteArrayList<UpdateCounter> COUNTERS = new CopyOnWriteArrayList<>();
+    private static final AppendOnlyList<UpdateCounter> COUNTERS = new AppendOnlyList<>();
     private static final ClassValue<UpdateCounter> COUNTER_CACHE = new ClassValue<>() {
         @Override
         protected UpdateCounter computeValue(Class<?> aClass) {
@@ -172,10 +171,10 @@ public class TraceInstanceOf {
     }
 
     public static Collection<UpdateCounter.Snapshot> orderedSnapshot(final boolean cleanup) {
-        final int size = COUNTERS.size();
+        final int size = (int) COUNTERS.size();
         ArrayList<UpdateCounter.Snapshot> snapshots = new ArrayList<>(size);
         final IdentityHashMap<String, TyeProfile> tracesPerConcreteType = cleanup ? new IdentityHashMap<>(size) : null;
-        COUNTERS.forEach((updateCounter) -> {
+        COUNTERS.forEach(updateCounter -> {
             if (updateCounter.updateCount > 1 && updateCounter.topStackTraces.size() > 1) {
                 final UpdateCounter.Snapshot snapshot = updateCounter.memento();
                 // the update count and trace collecting is lazy; let's skip malformed cases

@@ -85,6 +85,37 @@ public class TraceInstanceOf {
 
     private static final ConcurrentHashMap<String, Class> INTERFACE_PER_TRACE = new ConcurrentHashMap<>();
 
+    public static boolean traceIsInstance(Class interfaceClazz, Object o, String trace) {
+        final boolean result = interfaceClazz.isInstance(o);
+        if (!result) {
+            return false;
+        }
+        final Class concreteClass = o.getClass();
+        // unnecessary tracing
+        if (!interfaceClazz.isInterface()
+                || concreteClass.isInterface()
+                || concreteClass.isArray()
+                || concreteClass.isAnnotation()) {
+            return true;
+        }
+        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
+        return true;
+    }
+
+    public static void traceCast(Class interfaceClazz, Object o, String trace) {
+        if (!interfaceClazz.isInstance(o)) {
+            return;
+        }
+        final Class concreteClass = o.getClass();
+        // unnecessary tracing
+        if (!interfaceClazz.isInterface()
+                || concreteClass.isInterface()
+                || concreteClass.isArray()
+                || concreteClass.isAnnotation()) {
+            return;
+        }
+        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
+    }
 
     public static boolean traceInstanceOf(Object o, Class interfaceClazz, String trace) {
         final boolean result = interfaceClazz.isInstance(o);

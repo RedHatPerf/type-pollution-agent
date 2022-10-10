@@ -33,6 +33,34 @@ public class ByteBuddyUtils {
         }
 
         @Override
+        public void visitMethodInsn(final int opcode, final String owner, final String name, final String descriptor, final boolean isInterface) {
+            if (opcode == Opcodes.INVOKEVIRTUAL && "java/lang/Class".equals(owner)) {
+                switch (name) {
+                    case "cast":
+                        mv.visitInsn(Opcodes.DUP2);
+                        mv.visitLdcInsn(trace());
+                        mv.visitMethodInsn(net.bytebuddy.jar.asm.Opcodes.INVOKESTATIC,
+                                Type.getInternalName(TraceInstanceOf.class),
+                                "traceCast",
+                                "(Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/String;)V", false);
+                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                        break;
+                    case "isInstance":
+                        mv.visitLdcInsn(trace());
+                        mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                                Type.getInternalName(TraceInstanceOf.class),
+                                "traceIsInstance",
+                                "(Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/String;)Z", false);
+                        break;
+                    default:
+                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                }
+            } else {
+                super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+            }
+        }
+
+        @Override
         public void visitTypeInsn(final int opcode, final String type) {
             switch (opcode) {
                 case Opcodes.CHECKCAST:

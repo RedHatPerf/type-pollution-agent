@@ -63,7 +63,7 @@ public class Main {
     }
 
     public static boolean foo(I3 i) {
-        return i instanceof I1;
+        return I1.class.isInstance(i);
     }
 
     public static boolean goo(I3 i) {
@@ -71,11 +71,11 @@ public class Main {
     }
 
     public static void castToI1(Object o) {
-        ((I1) o).do1();
+        I1.class.cast(o).do1();
     }
 
     public static void castToI2(Object o) {
-        ((I2) o).do2();
+        ((I2)o).do2();
     }
 
 }

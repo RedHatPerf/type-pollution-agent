@@ -18,8 +18,12 @@ import static net.bytebuddy.matcher.ElementMatchers.*;
 public class Agent {
 
     private static final boolean ENABLE_STATISTICS_CLEANUP =  Boolean.getBoolean("io.type.pollution.cleanup");
+    private static final boolean ENABLE_FULL_STACK_TRACES =  Boolean.getBoolean("io.type.pollution.full.traces");
 
     public static void premain(String agentArgs, Instrumentation inst) {
+        if (ENABLE_FULL_STACK_TRACES) {
+            TraceInstanceOf.startMetronome();
+        }
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             StringBuilder summary = new StringBuilder();
             summary.append("--------------------------\n");
@@ -40,6 +44,17 @@ public class Agent {
                 summary.append("Traces:\n");
                 for (String stack : snapshot.topStackTraces) {
                     summary.append("\t").append(stack).append('\n');
+                }
+                if (ENABLE_FULL_STACK_TRACES) {
+                    summary.append("Full Traces:\n");
+                    int i = 1;
+                    for (StackTraceElement[] fullFrames : snapshot.fullStackFrames) {
+                        summary.append("\t--------------------------\n");
+                        i++;
+                        for (StackTraceElement frame : fullFrames) {
+                            summary.append("\t").append(frame).append('\n');
+                        }
+                    }
                 }
             });
             if (mutableInt.rowId > 0) {

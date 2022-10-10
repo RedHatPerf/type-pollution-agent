@@ -1,26 +1,54 @@
 package io.type.pollution.agent;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public class TraceInstanceOf {
 
+    private static final long MILLIS = 10;
+    private static volatile long GLOBAL_SAMPLING_TICK = System.nanoTime();
+    private static final AtomicBoolean METRONOME_STARTED = new AtomicBoolean();
+    private static final Thread METRONOME = new Thread(() -> {
+        final Thread current = Thread.currentThread();
+        while (!current.isInterrupted()) {
+            try {
+                Thread.sleep(MILLIS);
+            } catch (InterruptedException e) {
+                // let's stop
+                return;
+            }
+            GLOBAL_SAMPLING_TICK = System.nanoTime();
+        }
+
+    });
+
+    public static void startMetronome() {
+        if (METRONOME_STARTED.compareAndSet(false, true)) {
+            METRONOME.setDaemon(true);
+            METRONOME.setName("type-pollution-metronome");
+            METRONOME.start();
+        }
+    }
+
     public static final class UpdateCounter {
 
         private static final AtomicReferenceFieldUpdater<UpdateCounter, Class> LAST_SEEN_INTERFACE_UPDATER =
                 AtomicReferenceFieldUpdater.newUpdater(UpdateCounter.class, Class.class, "lastSeenInterface");
-
         private static final AtomicLongFieldUpdater<UpdateCounter> UPDATE_COUNT =
                 AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "updateCount");
+        private static final AtomicLongFieldUpdater<UpdateCounter> SAMPLING_TICK_UPDATER =
+                AtomicLongFieldUpdater.newUpdater(UpdateCounter.class, "lastSamplingTick");
+
         private final Class clazz;
         private volatile long updateCount;
         private volatile Class lastSeenInterface = null;
+        private volatile long lastSamplingTick = System.nanoTime();
 
         private final CopyOnWriteArraySet<Trace> traces = new CopyOnWriteArraySet<>();
-
+        private final CopyOnWriteArraySet<List<StackTraceElement>> sampledStackTraces = new CopyOnWriteArraySet<>();
         private final ThreadLocal<Trace> TRACE = ThreadLocal.withInitial(Trace::new);
 
         public static class Trace {
@@ -87,6 +115,26 @@ public class TraceInstanceOf {
                             pooledTrace.clear();
                         }
                     }
+                    if (METRONOME_STARTED.get()) {
+                        final long tick = lastSamplingTick;
+                        final long globalTick = GLOBAL_SAMPLING_TICK;
+                        if (tick - globalTick < 0) {
+                            // move forward our tick
+                            if (SAMPLING_TICK_UPDATER.compareAndSet(this, tick, globalTick)) {
+                                try {
+                                    StackTraceElement[] stackTraces = Thread.currentThread().getStackTrace();
+                                    final List<StackTraceElement> fullStackTraces = new ArrayList<>(stackTraces.length - 4);
+                                    for (int i = 4; i < stackTraces.length; i++) {
+                                        fullStackTraces.add(stackTraces[i]);
+                                    }
+                                    sampledStackTraces.add(fullStackTraces);
+                                } catch (Throwable t) {
+                                    new Exception().printStackTrace(System.out);
+                                    t.printStackTrace(System.err);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -96,12 +144,14 @@ public class TraceInstanceOf {
             public final Class[] seen;
             public final String[] topStackTraces;
             public final long updateCount;
+            public final StackTraceElement[][] fullStackFrames;
 
-            private Snapshot(Class clazz, Class[] seen, String[] topStackTraces, long updateCount) {
+            private Snapshot(Class clazz, Class[] seen, String[] topStackTraces, StackTraceElement[][] fullStackFrame, long updateCount) {
                 this.clazz = clazz;
                 this.seen = seen;
                 this.topStackTraces = topStackTraces;
                 this.updateCount = updateCount;
+                this.fullStackFrames = fullStackFrame;
             }
 
             @Override
@@ -118,7 +168,11 @@ public class TraceInstanceOf {
                 interfacesSeen.add(traces.seenClazz);
                 topStackTraces.add(traces.trace);
             }
-            return new UpdateCounter.Snapshot(clazz, interfacesSeen.toArray(new Class[0]), topStackTraces.toArray(new String[0]), updateCount);
+            final List<StackTraceElement[]> fullStackFrames = new ArrayList<>(sampledStackTraces.size());
+            for (List<StackTraceElement> stackFrames : sampledStackTraces) {
+                fullStackFrames.add(stackFrames.toArray(new StackTraceElement[0]));
+            }
+            return new UpdateCounter.Snapshot(clazz, interfacesSeen.toArray(new Class[0]), topStackTraces.toArray(new String[0]), fullStackFrames.toArray(new StackTraceElement[0][]), updateCount);
         }
 
     }

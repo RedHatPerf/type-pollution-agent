@@ -18,8 +18,47 @@ public class TraceInstanceOf {
         private final Class clazz;
         private volatile long updateCount;
         private volatile Class lastSeenInterface = null;
-        private final CopyOnWriteArraySet<String> topStackTraces = new CopyOnWriteArraySet<>();
-        private final CopyOnWriteArraySet<Class> interfacesSeen = new CopyOnWriteArraySet<>();
+
+        private final CopyOnWriteArraySet<Trace> traces = new CopyOnWriteArraySet<>();
+
+        private final ThreadLocal<Trace> TRACE = ThreadLocal.withInitial(Trace::new);
+
+        public static class Trace {
+            private Class seenClazz;
+            private String trace;
+            public Trace() {
+
+            }
+            public Trace with(Class seenClazz, String trace) {
+                this.seenClazz = seenClazz;
+                this.trace = trace;
+                return this;
+            }
+
+            public Trace clear() {
+                this.seenClazz = seenClazz;
+                this.trace = trace;
+                return this;
+            }
+
+            @Override
+            public boolean equals(final Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                final Trace trace1 = (Trace) o;
+
+                if (!seenClazz.equals(trace1.seenClazz)) return false;
+                return trace.equals(trace1.trace);
+            }
+
+            @Override
+            public int hashCode() {
+                int result = seenClazz.hashCode();
+                result = 31 * result + trace.hashCode();
+                return result;
+            }
+        }
 
         private UpdateCounter(Class clazz) {
             this.clazz = clazz;
@@ -36,8 +75,18 @@ public class TraceInstanceOf {
                     UPDATE_COUNT.lazySet(this, updateCount + 1);
                 }
                 if (lastSeen != null) {
-                    interfacesSeen.add(seenClazz);
-                    topStackTraces.add(trace);
+                    Trace pooledTrace = TRACE.get().with(seenClazz, trace);
+                    boolean added = false;
+                    try {
+                        added = traces.add(pooledTrace);
+                    } finally {
+                        if (added) {
+                            // cannot reuse anymore, replace it
+                            TRACE.set(new Trace());
+                        } else {
+                            pooledTrace.clear();
+                        }
+                    }
                 }
             }
         }
@@ -62,6 +111,13 @@ public class TraceInstanceOf {
         }
 
         private Snapshot mementoOf() {
+            final int size = traces.size();
+            final Set<Class> interfacesSeen = new HashSet<>(size);
+            final Set<String> topStackTraces = new HashSet<>(size);
+            for (Trace traces : traces) {
+                interfacesSeen.add(traces.seenClazz);
+                topStackTraces.add(traces.trace);
+            }
             return new UpdateCounter.Snapshot(clazz, interfacesSeen.toArray(new Class[0]), topStackTraces.toArray(new String[0]), updateCount);
         }
 
@@ -78,19 +134,14 @@ public class TraceInstanceOf {
     };
 
     public static boolean traceIsInstance(Class interfaceClazz, Object o, String trace) {
-        final boolean result = interfaceClazz.isInstance(o);
-        if (!result) {
+        if (!interfaceClazz.isInstance(o)) {
             return false;
         }
-        final Class concreteClass = o.getClass();
         // unnecessary tracing
-        if (!interfaceClazz.isInterface()
-                || concreteClass.isInterface()
-                || concreteClass.isArray()
-                || concreteClass.isAnnotation()) {
+        if (!interfaceClazz.isInterface()) {
             return true;
         }
-        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
+        COUNTER_CACHE.get(o.getClass()).lazyUpdateCount(interfaceClazz, trace);
         return true;
     }
 
@@ -98,63 +149,42 @@ public class TraceInstanceOf {
         if (!result) {
             return false;
         }
-        final Class concreteClass = oClazz;
-        // unnecessary tracing
-        if (!interfaceClazz.isInterface()
-                || concreteClass.isInterface()
-                || concreteClass.isArray()
-                || concreteClass.isAnnotation()) {
+        if (!interfaceClazz.isInterface()) {
             return true;
         }
-        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
+        COUNTER_CACHE.get(oClazz).lazyUpdateCount(interfaceClazz, trace);
         return true;
     }
 
     public static void traceCast(Class interfaceClazz, Object o, String trace) {
+        if (!interfaceClazz.isInterface()) {
+            return;
+        }
         if (!interfaceClazz.isInstance(o)) {
             return;
         }
-        final Class concreteClass = o.getClass();
-        // unnecessary tracing
-        if (!interfaceClazz.isInterface()
-                || concreteClass.isInterface()
-                || concreteClass.isArray()
-                || concreteClass.isAnnotation()) {
-            return;
-        }
-        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
+        COUNTER_CACHE.get(o.getClass()).lazyUpdateCount(interfaceClazz, trace);
     }
 
     public static boolean traceInstanceOf(Object o, Class interfaceClazz, String trace) {
-        final boolean result = interfaceClazz.isInstance(o);
-        if (!result) {
+        if (!interfaceClazz.isInstance(o)) {
             return false;
         }
-        final Class concreteClass = o.getClass();
-        // unnecessary tracing
-        if (!interfaceClazz.isInterface()
-                || concreteClass.isInterface()
-                || concreteClass.isArray()
-                || concreteClass.isAnnotation()) {
+        if (!interfaceClazz.isInterface()) {
             return true;
         }
-        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
+        COUNTER_CACHE.get(o.getClass()).lazyUpdateCount(interfaceClazz, trace);
         return true;
     }
 
     public static void traceCheckcast(Object o, Class interfaceClazz, String trace) {
+        if (!interfaceClazz.isInterface()) {
+            return;
+        }
         if (!interfaceClazz.isInstance(o)) {
             return;
         }
-        final Class concreteClass = o.getClass();
-        // unnecessary tracing
-        if (!interfaceClazz.isInterface()
-                || concreteClass.isInterface()
-                || concreteClass.isArray()
-                || concreteClass.isAnnotation()) {
-            return;
-        }
-        COUNTER_CACHE.get(concreteClass).lazyUpdateCount(interfaceClazz, trace);
+        COUNTER_CACHE.get(o.getClass()).lazyUpdateCount(interfaceClazz, trace);
     }
 
     private static class TyeProfile {
@@ -218,7 +248,7 @@ public class TraceInstanceOf {
         ArrayList<UpdateCounter.Snapshot> snapshots = new ArrayList<>(size);
         final IdentityHashMap<String, TyeProfile> tracesPerConcreteType = cleanup ? new IdentityHashMap<>(size) : null;
         COUNTERS.forEach(updateCounter -> {
-            if (updateCounter.updateCount > 1 && updateCounter.topStackTraces.size() > 1) {
+            if (updateCounter.updateCount > 1 && updateCounter.traces.size() > 1) {
                 final UpdateCounter.Snapshot snapshot = updateCounter.mementoOf();
                 // the update count and trace collecting is lazy; let's skip malformed cases
                 snapshots.add(snapshot);

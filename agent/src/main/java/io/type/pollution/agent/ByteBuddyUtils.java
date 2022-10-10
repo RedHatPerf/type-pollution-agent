@@ -52,6 +52,15 @@ public class ByteBuddyUtils {
                                 "traceIsInstance",
                                 "(Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/String;)Z", false);
                         break;
+                    case "isAssignableFrom":
+                        mv.visitInsn(Opcodes.DUP2);
+                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                        mv.visitLdcInsn(trace());
+                        mv.visitMethodInsn(net.bytebuddy.jar.asm.Opcodes.INVOKESTATIC,
+                                Type.getInternalName(TraceInstanceOf.class),
+                                "traceIsAssignableFrom",
+                                "(Ljava/lang/Class;Ljava/lang/Class;ZLjava/lang/String;)Z", false);
+                        break;
                     default:
                         super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
                 }

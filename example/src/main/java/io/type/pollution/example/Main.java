@@ -67,15 +67,20 @@ public class Main {
     }
 
     public static boolean goo(I3 i) {
-        return i instanceof I2;
+        // same line of code!!
+        if (i instanceof I2 && I3.class.isAssignableFrom(i.getClass())) {
+            return true;
+        }
+        return false;
     }
+
 
     public static void castToI1(Object o) {
         I1.class.cast(o).do1();
     }
 
     public static void castToI2(Object o) {
-        ((I2)o).do2();
+        ((I2) o).do2();
     }
 
 }

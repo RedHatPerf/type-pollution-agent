@@ -35,6 +35,13 @@ public class TraceInstanceOf {
 
     public static final class UpdateCounter {
 
+        private static final class StackTraceArrayList extends ArrayList<StackTraceElement> {
+
+            public StackTraceArrayList(int capacity) {
+                super(capacity);
+            }
+        }
+
         private static final AtomicReferenceFieldUpdater<UpdateCounter, Class> LAST_SEEN_INTERFACE_UPDATER =
                 AtomicReferenceFieldUpdater.newUpdater(UpdateCounter.class, Class.class, "lastSeenInterface");
         private static final AtomicLongFieldUpdater<UpdateCounter> UPDATE_COUNT =
@@ -48,15 +55,18 @@ public class TraceInstanceOf {
         private volatile long lastSamplingTick = System.nanoTime();
 
         private final CopyOnWriteArraySet<Trace> traces = new CopyOnWriteArraySet<>();
-        private final CopyOnWriteArraySet<List<StackTraceElement>> sampledStackTraces = new CopyOnWriteArraySet<>();
-        private final ThreadLocal<Trace> TRACE = ThreadLocal.withInitial(Trace::new);
+        private final CopyOnWriteArraySet<StackTraceArrayList> sampledStackTraces = new CopyOnWriteArraySet<>();
+        private static final ThreadLocal<Trace> TRACE = ThreadLocal.withInitial(Trace::new);
+        private static final ThreadLocal<StackTraceArrayList> FULL_STACK_TRACE = new ThreadLocal<>();
 
         public static class Trace {
             private Class seenClazz;
             private String trace;
+
             public Trace() {
 
             }
+
             public Trace with(Class seenClazz, String trace) {
                 this.seenClazz = seenClazz;
                 this.trace = trace;
@@ -86,6 +96,20 @@ public class TraceInstanceOf {
                 result = 31 * result + trace.hashCode();
                 return result;
             }
+        }
+
+        private static StackTraceArrayList acquireStackTraceListOf(int capacity) {
+            StackTraceArrayList list = FULL_STACK_TRACE.get();
+            if (list == null) {
+                list = new StackTraceArrayList(capacity);
+                FULL_STACK_TRACE.set(list);
+            }
+            list.ensureCapacity(capacity);
+            return list;
+        }
+
+        private static void releaseStackTraceArrayList() {
+            FULL_STACK_TRACE.set(null);
         }
 
         private UpdateCounter(Class clazz) {
@@ -121,16 +145,23 @@ public class TraceInstanceOf {
                         if (tick - globalTick < 0) {
                             // move forward our tick
                             if (SAMPLING_TICK_UPDATER.compareAndSet(this, tick, globalTick)) {
+                                StackTraceElement[] stackTraces = Thread.currentThread().getStackTrace();
+                                final StackTraceArrayList fullStackTraces = acquireStackTraceListOf(stackTraces.length);
+                                boolean addedFullStackSample = false;
                                 try {
-                                    StackTraceElement[] stackTraces = Thread.currentThread().getStackTrace();
-                                    final List<StackTraceElement> fullStackTraces = new ArrayList<>(stackTraces.length - 4);
                                     for (int i = 4; i < stackTraces.length; i++) {
                                         fullStackTraces.add(stackTraces[i]);
                                     }
-                                    sampledStackTraces.add(fullStackTraces);
-                                } catch (Throwable t) {
-                                    new Exception().printStackTrace(System.out);
-                                    t.printStackTrace(System.err);
+                                    addedFullStackSample = sampledStackTraces.add(fullStackTraces);
+                                } catch (Throwable ignore) {
+
+                                }
+                                if (addedFullStackSample) {
+                                    // cannot reuse it
+                                    releaseStackTraceArrayList();
+                                } else {
+                                    // keep on reusing it
+                                    fullStackTraces.clear();
                                 }
                             }
                         }

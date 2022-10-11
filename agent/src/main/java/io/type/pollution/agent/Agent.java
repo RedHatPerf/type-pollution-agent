@@ -12,6 +12,9 @@ import net.bytebuddy.matcher.ElementMatcher;
 import net.bytebuddy.pool.TypePool;
 
 import java.lang.instrument.Instrumentation;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static net.bytebuddy.matcher.ElementMatchers.*;
 
@@ -23,7 +26,7 @@ public class Agent {
     static final int FULL_STACK_TRACES_LIMIT =  Integer.getInteger("io.type.pollution.full.traces.limit", 20);
     private static final int TYPE_UPDATE_COUNT_MIN =  Integer.getInteger("io.type.pollution.count.min", 10);
     private static final int TRACING_DELAY_SECS =  Integer.getInteger("io.type.pollution.delay", 0);
-
+    private static final Long REPORT_INTERVAL_SECS =  Long.getLong("io.type.pollution.report.interval");
 
 
     public static void premain(String agentArgs, Instrumentation inst) {
@@ -31,48 +34,18 @@ public class Agent {
             TraceInstanceOf.startMetronome();
         }
         TraceInstanceOf.startTracing(TRACING_DELAY_SECS);
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            StringBuilder summary = new StringBuilder();
-            summary.append("--------------------------\n");
-            summary.append("Type Pollution Statistics:\n");
-            class MutableInt {
-                int rowId = 0;
-            }
-            MutableInt mutableInt = new MutableInt();
-            TraceInstanceOf.orderedSnapshot(ENABLE_STATISTICS_CLEANUP, TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
-                mutableInt.rowId++;
-                summary.append("--------------------------\n");
-                summary.append(mutableInt.rowId).append(":\t").append(snapshot.clazz.getName()).append('\n');
-                summary.append("Count:\t").append(snapshot.updateCount).append('\n');
-                summary.append("Types:\n");
-                for (Class seen : snapshot.seen) {
-                    summary.append("\t").append(seen.getName()).append('\n');
-                }
-                summary.append("Traces:\n");
-                for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot stack : snapshot.traces) {
-                    summary.append("\t").append(stack.trace).append('\n');
-                    for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot.ClassUpdateCount count : stack.interfaceSeenCounters) {
-                        summary.append("\t\tclass: ").append(count.interfaceClazz.getName()).append('\n');
-                        summary.append("\t\tcount: ").append(count.updateCount).append('\n');
-                    }
-                }
-                if (ENABLE_FULL_STACK_TRACES) {
-                    summary.append("Full Traces:\n");
-                    int i = 1;
-                    for (StackTraceElement[] fullFrames : snapshot.fullStackFrames) {
-                        summary.append("\t--------------------------\n");
-                        i++;
-                        for (StackTraceElement frame : fullFrames) {
-                            summary.append("\t").append(frame).append('\n');
-                        }
-                    }
-                }
-            });
-            if (mutableInt.rowId > 0) {
-                summary.append("--------------------------\n");
-                System.out.println(summary);
-            }
-        }));
+        
+        if (REPORT_INTERVAL_SECS != null) {
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r);
+                t.setDaemon(true);
+                t.setName("type-pollution-periodic-report");
+                return t;
+            }).scheduleWithFixedDelay(Agent::printReport, TRACING_DELAY_SECS + REPORT_INTERVAL_SECS, REPORT_INTERVAL_SECS, TimeUnit.SECONDS);
+        }
+
+        Runtime.getRuntime().addShutdownHook(new Thread(Agent::printReport));
+
         final String[] agentArgsValues = agentArgs == null ? null : agentArgs.split(",");
         ElementMatcher.Junction<? super TypeDescription> acceptedTypes = any();
         if (agentArgsValues != null && agentArgsValues.length > 0) {
@@ -115,5 +88,42 @@ public class Agent {
                     }
                 })).installOn(inst);
     }
+
+    private static void printReport() {
+        AtomicInteger rowId = new AtomicInteger();
+        StringBuilder summary = new StringBuilder("--------------------------\nType Pollution Statistics:\n");
+        TraceInstanceOf.orderedSnapshot(ENABLE_STATISTICS_CLEANUP, TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
+            summary.append("--------------------------\n");
+            summary.append(rowId.incrementAndGet()).append(":\t").append(snapshot.clazz.getName()).append('\n');
+            summary.append("Count:\t").append(snapshot.updateCount).append('\n');
+            summary.append("Types:\n");
+            for (Class<?> seen : snapshot.seen) {
+                summary.append("\t").append(seen.getName()).append('\n');
+            }
+            summary.append("Traces:\n");
+            for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot stack : snapshot.traces) {
+                summary.append("\t").append(stack.trace).append('\n');
+                for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot.ClassUpdateCount count : stack.interfaceSeenCounters) {
+                    summary.append("\t\tclass: ").append(count.interfaceClazz.getName()).append('\n');
+                    summary.append("\t\tcount: ").append(count.updateCount).append('\n');
+                }
+            }
+            if (ENABLE_FULL_STACK_TRACES) {
+                summary.append("Full Traces:\n");
+                for (StackTraceElement[] fullFrames : snapshot.fullStackFrames) {
+                    summary.append("\t--------------------------\n");
+                    for (StackTraceElement frame : fullFrames) {
+                        summary.append("\t").append(frame).append('\n');
+                    }
+                }
+            }
+        });
+        if (rowId.get() > 0) {
+            summary.append("--------------------------\n");
+            System.out.println(summary);
+        }
+
+    }
+
 }
 

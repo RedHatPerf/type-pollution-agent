@@ -1,5 +1,19 @@
 # Java agent to diagnose [JDK-8180450](https://bugs.openjdk.org/browse/JDK-8180450) 
 
+## What is JDK-8180450?
+
+See [the issue](https://bugs.openjdk.org/browse/JDK-8180450) for full details... 
+But briefly, the problem is that the OpenJDK JVM caches the supertype of a class/interface on the JRE's `Klass` structure when evaluating things like `instanceof` or checking type casts and while that usually results in a performance win (because a slower traversal of the whole hierarchy can be avoided), in certain circumstances involving multiple inheritance of interfaces the cache is worse than useless.
+CPU will be expended updating the cache, but the cached value won't help avoiding the slow path.
+It's a problem because the surprising and significant difference in performance between the ideal and worst case behaviours means programmers can easily write poorly performing code without realising the costs (_usually_ `instanceof` is very cheap, for example).
+
+## What is this?
+
+It's a Java agent which can be used to identify code which may be suffering from this problem.
+It attempts to count the number of times an a particular concrete class is used in `instanceof` (and similar) expressions with a different test type.
+For example at one point in the code you might have `foo instanceof I1` and somewhere else `bar instanceof I2` (where `foo` and `bar` have the same concrete type).
+The agent will estimate the number of times the cached supertype (`I1` and `I2`) is changing, i.e. how often you're hitting the slower path.
+
 ## Build
 
 ```
@@ -63,7 +77,7 @@ to the list of JVM argument, turning the previous output into:
 An empty statistics?
 
 Yes, because each call-site always observe a single concrete type; meaning
-that OpenJDK C2 "should" (TM) able to constant fold all the checks (precomputed)
+that OpenJDK C2 compiler "should"™ be able to constant fold all the checks (precomputed)
 and add a guard + uncommon trap check instead.
 
 ### Full stack traces are available?

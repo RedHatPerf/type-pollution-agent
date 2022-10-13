@@ -33,29 +33,42 @@ The output, with a default agent configuration, is:
 Type Pollution Statistics:
 --------------------------
 1:      io.type.pollution.example.B
-Count:  5347728
+Count:  5364580
 Types:
-        io.type.pollution.example.I1
-        io.type.pollution.example.I3
         io.type.pollution.example.I2
+        io.type.pollution.example.I3
+        io.type.pollution.example.I1
 Traces:
         io.type.pollution.example.Main.goo(Main.java:71)
+                class: io.type.pollution.example.I2
+                count: 1822574
+                class: io.type.pollution.example.I3
+                count: 1800163
         io.type.pollution.example.Main.foo(Main.java:66)
+                class: io.type.pollution.example.I1
+                count: 1741843
 --------------------------
 2:      io.type.pollution.example.C
-Count:  3737797
+Count:  3642662
 Types:
-        io.type.pollution.example.I1
         io.type.pollution.example.I2
+        io.type.pollution.example.I1
 Traces:
         io.type.pollution.example.Main.castToI2(Main.java:83)
+                class: io.type.pollution.example.I2
+                count: 1836278
         io.type.pollution.example.Main.castToI1(Main.java:79)
+                class: io.type.pollution.example.I1
+                count: 1806384
 --------------------------
 ```
 - **Count**: is the number of observed successful `checkcast`/`instanceof`/`Class::isAssignableFrom`/`Class::cast`/`Class::isInstance` 
 against a different (interface) type from the last seen
 - **Types**: is the list of different (interface) types observed
-- **Traces**: is a list of top method stack traces compatible with
+- **Traces**: is a list of top method stack traces along with the interface *class* seen and related *count* (ie observed 
+secondary super cache invalidations). 
+
+**note** `Traces` format is compatible with
   [Idea IntelliJ Stack Trace Viewer](https://www.jetbrains.com/help/idea/analyzing-external-stacktraces.html) 
 
 The report is an ordered list which types are ordered by increasing `Count` ie
@@ -94,23 +107,21 @@ And, the output will become:
 Type Pollution Statistics:
 --------------------------
 1:      io.type.pollution.example.B
-Count:  5461879
+Count:  5364580
 Types:
+        io.type.pollution.example.I2
         io.type.pollution.example.I3
         io.type.pollution.example.I1
-        io.type.pollution.example.I2
 Traces:
         io.type.pollution.example.Main.goo(Main.java:71)
+                class: io.type.pollution.example.I2
+                count: 1822574
+                class: io.type.pollution.example.I3
+                count: 1800163
         io.type.pollution.example.Main.foo(Main.java:66)
+                class: io.type.pollution.example.I1
+                count: 1741843
 Full Traces:
-        --------------------------
-        io.type.pollution.example.Main.goo(Main.java:71)
-        io.type.pollution.example.Main.lambda$main$0(Main.java:56)
-        java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
-        java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
-        java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
-        java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
-        java.base/java.lang.Thread.run(Thread.java:829)
         --------------------------
         io.type.pollution.example.Main.foo(Main.java:66)
         io.type.pollution.example.Main.lambda$main$0(Main.java:55)
@@ -119,7 +130,15 @@ Full Traces:
         java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
         java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
         java.base/java.lang.Thread.run(Thread.java:829)
-        
+        --------------------------
+        io.type.pollution.example.Main.goo(Main.java:71)
+        io.type.pollution.example.Main.lambda$main$0(Main.java:56)
+        java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+        java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+        java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+        java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+        java.base/java.lang.Thread.run(Thread.java:829)
+--------------------------        
 # Rest omitted for brevity....
 ```
 

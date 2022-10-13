@@ -44,8 +44,12 @@ public class Agent {
                     summary.append("\t").append(seen.getName()).append('\n');
                 }
                 summary.append("Traces:\n");
-                for (String stack : snapshot.topStackTraces) {
-                    summary.append("\t").append(stack).append('\n');
+                for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot stack : snapshot.traces) {
+                    summary.append("\t").append(stack.trace).append('\n');
+                    for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot.ClassUpdateCount count : stack.interfaceSeenCounters) {
+                        summary.append("\t\tclass: ").append(count.interfaceClazz.getName()).append('\n');
+                        summary.append("\t\tcount: ").append(count.updateCount).append('\n');
+                    }
                 }
                 if (ENABLE_FULL_STACK_TRACES) {
                     summary.append("Full Traces:\n");

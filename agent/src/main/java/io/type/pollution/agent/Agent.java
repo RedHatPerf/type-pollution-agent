@@ -19,7 +19,12 @@ public class Agent {
 
     private static final boolean ENABLE_STATISTICS_CLEANUP =  Boolean.getBoolean("io.type.pollution.cleanup");
     private static final boolean ENABLE_FULL_STACK_TRACES =  Boolean.getBoolean("io.type.pollution.full.traces");
+
+    static final int FULL_STACK_TRACES_LIMIT =  Integer.getInteger("io.type.pollution.full.traces.limit", 20);
+    private static final int TYPE_UPDATE_COUNT_MIN =  Integer.getInteger("io.type.pollution.count.min", 10);
     private static final int TRACING_DELAY_SECS =  Integer.getInteger("io.type.pollution.delay", 0);
+
+
 
     public static void premain(String agentArgs, Instrumentation inst) {
         if (ENABLE_FULL_STACK_TRACES) {
@@ -34,7 +39,7 @@ public class Agent {
                 int rowId = 0;
             }
             MutableInt mutableInt = new MutableInt();
-            TraceInstanceOf.orderedSnapshot(ENABLE_STATISTICS_CLEANUP).forEach(snapshot -> {
+            TraceInstanceOf.orderedSnapshot(ENABLE_STATISTICS_CLEANUP, TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
                 mutableInt.rowId++;
                 summary.append("--------------------------\n");
                 summary.append(mutableInt.rowId).append(":\t").append(snapshot.clazz.getName()).append('\n');

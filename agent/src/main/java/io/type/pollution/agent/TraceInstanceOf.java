@@ -160,13 +160,20 @@ public class TraceInstanceOf {
             }
 
             public boolean addFullStackTrace() {
+                // this is not nice :( we KNOW which level we are so can hard-code this
+                // but is brittle, and it depends on where the trace collection happens
+                final int START_STACK = 4;
                 StackTraceElement[] stackTraces = Thread.currentThread().getStackTrace();
-                final StackTraceArrayList fullStackTraces = acquireStackTraceListOf(stackTraces.length);
+                final int stackTraceMaxDepth;
+                if (Agent.FULL_STACK_TRACES_LIMIT <= 0) {
+                    stackTraceMaxDepth = stackTraces.length;
+                } else {
+                    stackTraceMaxDepth = Math.min(Agent.FULL_STACK_TRACES_LIMIT + START_STACK, stackTraces.length);
+                }
+                final StackTraceArrayList fullStackTraces = acquireStackTraceListOf(stackTraceMaxDepth);
                 boolean addedFullStackSample = false;
                 try {
-                    // this is not nice :( we KNOW which level we are so can hard-code this
-                    // but is brittle and it depends where the trace collection happens
-                    for (int i = 4; i < stackTraces.length; i++) {
+                    for (int i = START_STACK; i < stackTraceMaxDepth; i++) {
                         fullStackTraces.add(stackTraces[i]);
                     }
                     addedFullStackSample = sampledStackTraces.add(fullStackTraces);
@@ -490,12 +497,13 @@ public class TraceInstanceOf {
         }
     }
 
-    public static Collection<UpdateCounter.Snapshot> orderedSnapshot(final boolean cleanup) {
+    public static Collection<UpdateCounter.Snapshot> orderedSnapshot(final boolean cleanup, final int minUpdateCount) {
         final int size = (int) COUNTERS.size();
         ArrayList<UpdateCounter.Snapshot> snapshots = new ArrayList<>(size);
         final IdentityHashMap<String, TyeProfile> tracesPerConcreteType = cleanup ? new IdentityHashMap<>(size) : null;
         COUNTERS.forEach(updateCounter -> {
-            if (updateCounter.updateCount() > 1 && updateCounter.traces.size() > 1) {
+            final int minCount = Math.max(1, minUpdateCount);
+            if (updateCounter.updateCount() > minCount && updateCounter.traces.size() > 1) {
                 final UpdateCounter.Snapshot snapshot = updateCounter.mementoOf();
                 // the update count and trace collecting is lazy; let's skip malformed cases
                 snapshots.add(snapshot);

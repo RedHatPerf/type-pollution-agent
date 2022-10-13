@@ -2,6 +2,7 @@ package io.type.pollution.agent;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -9,8 +10,14 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 public class TraceInstanceOf {
 
     private static final long MILLIS = 10;
+
     private static volatile long GLOBAL_SAMPLING_TICK = System.nanoTime();
     private static final AtomicBoolean METRONOME_STARTED = new AtomicBoolean();
+
+    // not ideal perf-wise:
+    // a good candidate to perform one-shot changing checks is
+    // https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/invoke/SwitchPoint.html
+    private static final AtomicBoolean TRACING_STARTED = new AtomicBoolean();
     private static final Thread METRONOME = new Thread(() -> {
         final Thread current = Thread.currentThread();
         while (!current.isInterrupted()) {
@@ -24,6 +31,34 @@ public class TraceInstanceOf {
         }
 
     });
+
+    public static void startTracing(final int seconds) {
+        if (seconds <= 0) {
+            startTracing();
+        } else {
+            final long start = System.nanoTime();
+            final Thread startTracingThread = new Thread(() -> {
+                final long timeToStartThread = System.nanoTime() - start;
+                final long remaningBeforeStartTracing =
+                        TimeUnit.SECONDS.toNanos(seconds) - timeToStartThread;
+                if (remaningBeforeStartTracing > 0) {
+                    try {
+                        TimeUnit.NANOSECONDS.sleep(remaningBeforeStartTracing);
+                        startTracing();
+                    } catch (InterruptedException ignore) {
+                        // we're stopping
+                    }
+                }
+            });
+            startTracingThread.setName("start-tracing");
+            startTracingThread.setDaemon(true);
+            startTracingThread.start();
+        }
+    }
+
+    private static void startTracing() {
+        TRACING_STARTED.compareAndSet(false, true);
+    }
 
     public static void startMetronome() {
         if (METRONOME_STARTED.compareAndSet(false, true)) {
@@ -222,6 +257,9 @@ public class TraceInstanceOf {
         if (!interfaceClazz.isInstance(o)) {
             return false;
         }
+        if (!isTracingStarted()) {
+            return true;
+        }
         // unnecessary tracing
         if (!interfaceClazz.isInterface()) {
             return true;
@@ -234,6 +272,9 @@ public class TraceInstanceOf {
         if (!result) {
             return false;
         }
+        if (!isTracingStarted()) {
+            return true;
+        }
         if (!interfaceClazz.isInterface()) {
             return true;
         }
@@ -242,6 +283,9 @@ public class TraceInstanceOf {
     }
 
     public static void traceCast(Class interfaceClazz, Object o, String trace) {
+        if (!isTracingStarted()) {
+            return;
+        }
         if (!interfaceClazz.isInterface()) {
             return;
         }
@@ -255,6 +299,9 @@ public class TraceInstanceOf {
         if (!interfaceClazz.isInstance(o)) {
             return false;
         }
+        if (!isTracingStarted()) {
+            return true;
+        }
         if (!interfaceClazz.isInterface()) {
             return true;
         }
@@ -262,7 +309,14 @@ public class TraceInstanceOf {
         return true;
     }
 
+    private static boolean isTracingStarted() {
+        return TRACING_STARTED.get();
+    }
+
     public static void traceCheckcast(Object o, Class interfaceClazz, String trace) {
+        if (!isTracingStarted()) {
+            return;
+        }
         if (!interfaceClazz.isInterface()) {
             return;
         }

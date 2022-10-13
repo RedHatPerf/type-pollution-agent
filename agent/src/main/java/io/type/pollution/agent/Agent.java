@@ -19,11 +19,13 @@ public class Agent {
 
     private static final boolean ENABLE_STATISTICS_CLEANUP =  Boolean.getBoolean("io.type.pollution.cleanup");
     private static final boolean ENABLE_FULL_STACK_TRACES =  Boolean.getBoolean("io.type.pollution.full.traces");
+    private static final int TRACING_DELAY_SECS =  Integer.getInteger("io.type.pollution.delay", 0);
 
     public static void premain(String agentArgs, Instrumentation inst) {
         if (ENABLE_FULL_STACK_TRACES) {
             TraceInstanceOf.startMetronome();
         }
+        TraceInstanceOf.startTracing(TRACING_DELAY_SECS);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             StringBuilder summary = new StringBuilder();
             summary.append("--------------------------\n");

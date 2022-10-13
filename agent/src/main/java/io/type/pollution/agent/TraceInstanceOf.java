@@ -74,8 +74,8 @@ public class TraceInstanceOf {
             }
 
             public Trace clear() {
-                this.seenClazz = seenClazz;
-                this.trace = trace;
+                this.seenClazz = null;
+                this.trace = null;
                 return this;
             }
 

@@ -301,23 +301,7 @@ public class TraceInstanceOf {
             }
         }
 
-        private Snapshot mementoOf() {
-            final int tracesCount = traces.size();
-            final Map<String, List<Snapshot.TraceSnapshot.ClassUpdateCount>> topStackTraces = new HashMap<>(tracesCount);
-            final Set<StackTraceArrayList> fullStackFrames = new HashSet<>(tracesCount);
-            class Counter {
-                long value;
-            }
-            final Map<Class, Counter> interfaceCounters = new HashMap<>();
-            traces.forEach((trace, traceData) -> {
-                for (StackTraceArrayList fullStackTrace : traceData.sampledStackTraces) {
-                    fullStackFrames.add(fullStackTrace);
-                }
-                topStackTraces.computeIfAbsent(trace.trace, t -> new ArrayList<>(1))
-                        .add(new Snapshot.TraceSnapshot.ClassUpdateCount(trace.interfaceClazz, traceData.updateCount));
-                // TODO add to existing update count to interfaceCounters
-                interfaceCounters.computeIfAbsent(trace.interfaceClazz, t -> new Counter()).value += traceData.updateCount;
-            });
+        private static Snapshot.TraceSnapshot[] buildOrderedTraceSnapshots(Map<String, List<Snapshot.TraceSnapshot.ClassUpdateCount>> topStackTraces) {
             final Snapshot.TraceSnapshot[] traceSnapshots = new Snapshot.TraceSnapshot[topStackTraces.size()];
             int i = 0;
             for (Map.Entry<String, List<Snapshot.TraceSnapshot.ClassUpdateCount>> topStackTrace : topStackTraces.entrySet()) {
@@ -337,6 +321,14 @@ public class TraceInstanceOf {
                 }
                 return totalUpdateCount;
             }).reversed());
+            return traceSnapshots;
+        }
+
+        private static class Counter {
+            long value;
+        }
+
+        private static Class[] buildOrderedInterfaceClasses(final Map<Class, Counter> interfaceCounters) {
             final Class[] interfaceClasses = new Class[interfaceCounters.size()];
             int j = 0;
             for (Map.Entry<Class, Counter> interfaceCounter : interfaceCounters.entrySet()) {
@@ -345,13 +337,36 @@ public class TraceInstanceOf {
             }
             Arrays.sort(interfaceClasses,
                     Comparator.<Class>comparingLong(aClass -> interfaceCounters.get(aClass).value).reversed());
-            // TODO order interfaces seen based on sum (across different traces) of update counts
+            return interfaceClasses;
+        }
+
+        private static StackTraceElement[][] buildUnorderedFullStackTraces(Set<StackTraceArrayList> fullStackFrames) {
             final StackTraceElement[][] fullStackTraces = new StackTraceElement[fullStackFrames.size()][];
             int z = 0;
             for (StackTraceArrayList fullStackFrame : fullStackFrames) {
                 fullStackTraces[z] = fullStackFrame.toArray(new StackTraceElement[0]);
                 z++;
             }
+            return fullStackTraces;
+        }
+
+        private Snapshot mementoOf() {
+            final int tracesCount = traces.size();
+            final Map<String, List<Snapshot.TraceSnapshot.ClassUpdateCount>> topStackTraces = new HashMap<>(tracesCount);
+            final Set<StackTraceArrayList> fullStackFrames = new HashSet<>(tracesCount);
+
+            final Map<Class, Counter> interfaceCounters = new HashMap<>();
+            traces.forEach((trace, traceData) -> {
+                for (StackTraceArrayList fullStackTrace : traceData.sampledStackTraces) {
+                    fullStackFrames.add(fullStackTrace);
+                }
+                topStackTraces.computeIfAbsent(trace.trace, t -> new ArrayList<>(1))
+                        .add(new Snapshot.TraceSnapshot.ClassUpdateCount(trace.interfaceClazz, traceData.updateCount));
+                interfaceCounters.computeIfAbsent(trace.interfaceClazz, t -> new Counter()).value += traceData.updateCount;
+            });
+            final Snapshot.TraceSnapshot[] traceSnapshots = buildOrderedTraceSnapshots(topStackTraces);
+            final Class[] interfaceClasses = buildOrderedInterfaceClasses(interfaceCounters);
+            final StackTraceElement[][] fullStackTraces = buildUnorderedFullStackTraces(fullStackFrames);
             return new UpdateCounter.Snapshot(clazz, interfaceClasses, traceSnapshots,
                     fullStackTraces);
         }

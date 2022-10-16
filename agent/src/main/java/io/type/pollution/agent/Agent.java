@@ -2,6 +2,7 @@ package io.type.pollution.agent;
 
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.asm.AsmVisitorWrapper;
+import net.bytebuddy.asm.TypeConstantAdjustment;
 import net.bytebuddy.description.field.FieldDescription;
 import net.bytebuddy.description.field.FieldList;
 import net.bytebuddy.description.method.MethodList;
@@ -64,7 +65,9 @@ public class Agent {
                             typeDescription,
                             classLoader,
                             module,
-                            protectionDomain) -> builder.visit(new AsmVisitorWrapper.AbstractBase() {
+                            protectionDomain) -> builder
+                        .visit(TypeConstantAdjustment.INSTANCE)
+                        .visit(new AsmVisitorWrapper.AbstractBase() {
 
                     @Override
                     public int mergeWriter(int flags) {

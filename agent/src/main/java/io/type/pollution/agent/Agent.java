@@ -21,7 +21,6 @@ import static net.bytebuddy.matcher.ElementMatchers.*;
 
 public class Agent {
 
-    private static final boolean ENABLE_STATISTICS_CLEANUP =  Boolean.getBoolean("io.type.pollution.cleanup");
     private static final boolean ENABLE_FULL_STACK_TRACES =  Boolean.getBoolean("io.type.pollution.full.traces");
 
     static final int FULL_STACK_TRACES_LIMIT =  Integer.getInteger("io.type.pollution.full.traces.limit", 20);
@@ -95,7 +94,7 @@ public class Agent {
     private static void printReport() {
         AtomicInteger rowId = new AtomicInteger();
         StringBuilder summary = new StringBuilder("--------------------------\nType Pollution Statistics:\n");
-        TraceInstanceOf.orderedSnapshot(ENABLE_STATISTICS_CLEANUP, TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
+        TraceInstanceOf.orderedSnapshot(TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
             summary.append("--------------------------\n");
             summary.append(rowId.incrementAndGet()).append(":\t").append(snapshot.clazz.getName()).append('\n');
             summary.append("Count:\t").append(snapshot.updateCount).append('\n');

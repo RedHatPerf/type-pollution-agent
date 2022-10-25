@@ -25,7 +25,7 @@ $ mvn package
 
 ```
 $ # From the root dir
-$ $ java -javaagent:agent/target/type-pollution-agent-0.1-SNAPSHOT.jar -XX:-Inline -XX:-TieredCompilation -jar example/target/type-pollution-example-0.1-SNAPSHOT.jar 
+$ java -javaagent:agent/target/type-pollution-agent-0.1-SNAPSHOT.jar -jar example/target/type-pollution-example-0.1-SNAPSHOT.jar 
 ```
 The output, with a default agent configuration, is:
 ```bash
@@ -77,21 +77,23 @@ to cause scalability issues.
 
 ### But what about OpenJDK JIT optimizations that could save any check to be performed?
 
+Due to the complexities of JIT mechanism (Inlining heuristic, method and bytecode Type Profiling, etc etc)
+the agent cannot detect if a potential treat translates into a real (scalability) performance issue:
+the smart and wise user should create system/[JMH](https://github.com/openjdk/jmh) benchmarks to analyze the 
+results of changes and narrow the scope of the agent to ignore the innocent traces.
 
-The agent can use an (imprecise/naive/eager/experimental) heuristic that mimic some JIT
-optimizations and save false-positive statistics; it can be enabled by adding
-```
--Dio.type.pollution.cleanup=true
-```
-to the list of JVM argument, turning the previous output into:
-```bash
- # THIS IS EMPTY ON PURPOSE!!
-```
-An empty statistics?
+To narrow the scope of the tracing, users can add a comma separated list of **package prefixes** (not full qualified class names!!!) 
+to the agent configuration and the agent will place tracing around the usual suspects byte-code instructions just on these:
 
-Yes, because each call-site always observe a single concrete type; meaning
-that OpenJDK C2 compiler "should"™ be able to constant fold all the checks (precomputed)
-and add a guard + uncommon trap check instead.
+eg
+```
+$ java -javaagent:agent/target/type-pollution-agent-0.1-SNAPSHOT.jar=io.other -jar example/target/type-pollution-example-0.1-SNAPSHOT.jar
+
+# IT WOULD PRINT...NOTHING! No packages starting with io.other exists :P 
+```
+
+Said that, cleaning up every `instanceof/checkcast` misuses is the best way to get rid 
+of any potential scalability issue, without relying on how JIT optimizes specific tests.
 
 ### Full stack traces are available?
 

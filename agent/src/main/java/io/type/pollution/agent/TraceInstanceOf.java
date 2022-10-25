@@ -94,8 +94,6 @@ public class TraceInstanceOf {
             private Class interfaceClazz;
             private String trace;
 
-            private int hashCode;
-
             public Trace() {
 
             }
@@ -460,76 +458,17 @@ public class TraceInstanceOf {
         int typesSeen = 0;
     }
 
-    private static void populateTraces(IdentityHashMap<String, TyeProfile> tracesPerConcreteType, UpdateCounter.Snapshot.TraceSnapshot[] topStackTraces) {
-        // update how many concrete types are seen per trace
-        for (UpdateCounter.Snapshot.TraceSnapshot trace : topStackTraces) {
-            TyeProfile typeProfile = tracesPerConcreteType.get(trace.trace);
-            if (typeProfile == null) {
-                typeProfile = new TyeProfile();
-                tracesPerConcreteType.put(trace.trace, typeProfile);
-            }
-            typeProfile.typesSeen++;
-        }
-    }
-
-    private static <T> boolean fastRemove(ArrayList<T> elements, int index) {
-        final int size = elements.size();
-        final int last = size - 1;
-        if (index == last) {
-            elements.remove(index);
-            return false;
-        }
-        elements.set(index, elements.remove(last));
-        return true;
-    }
-
-    /**
-     * THIS IS A VERY CONSERVATIVE STRATEGY TO REMOVE TYPES!
-     * We remove a type if all the traces that have made flip its last seen interface checkcast/instanceof
-     * have *ever* seen just 1 type ie itself.
-     * Reality is way more complex and probably there are others, more aggressive, logic
-     * to clean the statistics.
-     **/
-    private static void cleanupStatistics(IdentityHashMap<String, TyeProfile> tracesPerConcreteType, ArrayList<UpdateCounter.Snapshot> snapshots) {
-        int pos = 0;
-        for (int i = 0, size = snapshots.size(); i < size; i++) {
-            final UpdateCounter.Snapshot snapshot = snapshots.get(pos);
-            boolean safe = true;
-            for (UpdateCounter.Snapshot.TraceSnapshot trace : snapshot.traces) {
-                final TyeProfile typeProfile = tracesPerConcreteType.get(trace.trace);
-                if (typeProfile.typesSeen > 1) {
-                    safe = false;
-                    break;
-                }
-            }
-            if (safe) {
-                if (!fastRemove(snapshots, pos)) {
-                    break;
-                }
-            } else {
-                pos++;
-            }
-        }
-    }
-
-    public static Collection<UpdateCounter.Snapshot> orderedSnapshot(final boolean cleanup, final int minUpdateCount) {
+    public static Collection<UpdateCounter.Snapshot> orderedSnapshot(final int minUpdateCount) {
         final int size = (int) COUNTERS.size();
         ArrayList<UpdateCounter.Snapshot> snapshots = new ArrayList<>(size);
-        final IdentityHashMap<String, TyeProfile> tracesPerConcreteType = cleanup ? new IdentityHashMap<>(size) : null;
         COUNTERS.forEach(updateCounter -> {
             final int minCount = Math.max(1, minUpdateCount);
             if (updateCounter.updateCount() > minCount && updateCounter.traces.size() > 1) {
                 final UpdateCounter.Snapshot snapshot = updateCounter.mementoOf();
                 // the update count and trace collecting is lazy; let's skip malformed cases
                 snapshots.add(snapshot);
-                if (cleanup) {
-                    populateTraces(tracesPerConcreteType, snapshot.traces);
-                }
             }
         });
-        if (cleanup) {
-            cleanupStatistics(tracesPerConcreteType, snapshots);
-        }
         snapshots.sort(Comparator.reverseOrder());
         // collect
         return snapshots;

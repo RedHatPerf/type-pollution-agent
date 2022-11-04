@@ -15,6 +15,7 @@
   <modules>
     <module>example</module>
     <module>agent</module>
+    <module>benchmarks</module>
   </modules>
 
   <build>

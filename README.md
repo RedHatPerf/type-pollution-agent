@@ -98,11 +98,12 @@ of any potential scalability issue, without relying on how JIT optimizes specifi
 ### Full stack traces are available?
 
 Yes!
-To enable full-stack trace sampling 
-(now defaulted at 10 ms sampling for each concrete type) just add
+To enable full-stack trace sampling **for each** type check execution, use:
+> **WARNING**: this can have a large performance impact!!
 ```
 -Dio.type.pollution.full.traces=true
 ```
+
 And, the output will become:
 ```bash
 --------------------------
@@ -143,5 +144,10 @@ Full Traces:
 --------------------------        
 # Rest omitted for brevity....
 ```
-
+To reduce the performance impact due to collecting full stack traces for each execution, consider adding too
+```
+-Dio.type.pollution.full.traces.ms=10
+```
+that's going to perform stack sampling with a global tick time of 10 milliseconds: tune it to match your perf requirement
+and your type of load.
 

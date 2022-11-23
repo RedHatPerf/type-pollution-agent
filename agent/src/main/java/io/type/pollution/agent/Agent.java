@@ -23,6 +23,7 @@ public class Agent {
 
     private static final boolean ENABLE_FULL_STACK_TRACES =  Boolean.getBoolean("io.type.pollution.full.traces");
 
+    private static final int FULL_STACK_TRACES_SAMPLING_PERIOD_MS = Integer.getInteger("io.type.pollution.full.traces.ms", 0);
     static final int FULL_STACK_TRACES_LIMIT =  Integer.getInteger("io.type.pollution.full.traces.limit", 20);
     private static final int TYPE_UPDATE_COUNT_MIN =  Integer.getInteger("io.type.pollution.count.min", 10);
     private static final int TRACING_DELAY_SECS =  Integer.getInteger("io.type.pollution.delay", 0);
@@ -31,7 +32,7 @@ public class Agent {
 
     public static void premain(String agentArgs, Instrumentation inst) {
         if (ENABLE_FULL_STACK_TRACES) {
-            TraceInstanceOf.startMetronome();
+            TraceInstanceOf.startMetronome(FULL_STACK_TRACES_SAMPLING_PERIOD_MS);
         }
         TraceInstanceOf.startTracing(TRACING_DELAY_SECS);
         

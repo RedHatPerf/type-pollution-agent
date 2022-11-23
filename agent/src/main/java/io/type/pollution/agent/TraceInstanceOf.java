@@ -5,25 +5,26 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 public class TraceInstanceOf {
 
-    private static final long MILLIS = 10;
-
     private static volatile long GLOBAL_SAMPLING_TICK = System.nanoTime();
-    private static final AtomicBoolean METRONOME_STARTED = new AtomicBoolean();
+    private static final AtomicInteger METRONOME_PERIOD_MS = new AtomicInteger(-1);
 
     // not ideal perf-wise:
     // a good candidate to perform one-shot changing checks is
     // https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/invoke/SwitchPoint.html
     private static final AtomicBoolean TRACING_STARTED = new AtomicBoolean();
     private static final Thread METRONOME = new Thread(() -> {
+        // this isn't supposed to change
+        final int samplingPeriod = METRONOME_PERIOD_MS.get();
         final Thread current = Thread.currentThread();
         while (!current.isInterrupted()) {
             try {
-                Thread.sleep(MILLIS);
+                Thread.sleep(samplingPeriod);
             } catch (InterruptedException e) {
                 // let's stop
                 return;
@@ -61,8 +62,8 @@ public class TraceInstanceOf {
         TRACING_STARTED.compareAndSet(false, true);
     }
 
-    public static void startMetronome() {
-        if (METRONOME_STARTED.compareAndSet(false, true)) {
+    public static void startMetronome(int samplingPeriod) {
+        if (METRONOME_PERIOD_MS.compareAndSet(-1, samplingPeriod) && samplingPeriod > 0) {
             METRONOME.setDaemon(true);
             METRONOME.setName("type-pollution-metronome");
             METRONOME.start();
@@ -225,13 +226,18 @@ public class TraceInstanceOf {
                     pooledTrace.clear();
                 }
                 data.weakIncrementUpdateCount();
-                if (METRONOME_STARTED.get()) {
-                    final long tick = lastSamplingTick;
-                    final long globalTick = GLOBAL_SAMPLING_TICK;
-                    if (tick - globalTick < 0) {
-                        // move forward our tick
-                        if (SAMPLING_TICK_UPDATER.compareAndSet(this, tick, globalTick)) {
-                            data.addFullStackTrace();
+                final int samplingPeriod = METRONOME_PERIOD_MS.get();
+                if (samplingPeriod >= 0) {
+                    if (samplingPeriod == 0) {
+                        data.addFullStackTrace();
+                    } else {
+                        final long tick = lastSamplingTick;
+                        final long globalTick = GLOBAL_SAMPLING_TICK;
+                        if (tick - globalTick < 0) {
+                            // move forward our tick
+                            if (SAMPLING_TICK_UPDATER.compareAndSet(this, tick, globalTick)) {
+                                data.addFullStackTrace();
+                            }
                         }
                     }
                 }

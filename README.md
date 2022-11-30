@@ -33,33 +33,39 @@ The output, with a default agent configuration, is:
 Type Pollution Statistics:
 --------------------------
 1:      io.type.pollution.example.B
-Count:  5364580
+Count:  6477753
 Types:
         io.type.pollution.example.I2
         io.type.pollution.example.I3
         io.type.pollution.example.I1
 Traces:
-        io.type.pollution.example.Main.goo(Main.java:71)
-                class: io.type.pollution.example.I2
-                count: 1822574
+        io.type.pollution.example.Main.goo(Main.java:74)
                 class: io.type.pollution.example.I3
-                count: 1800163
-        io.type.pollution.example.Main.foo(Main.java:66)
+                count: 1826427
+                class: io.type.pollution.example.I2
+                count: 1430748
+        io.type.pollution.example.Main.foo(Main.java:69)
                 class: io.type.pollution.example.I1
-                count: 1741843
+                count: 1803371
+        io.type.pollution.example.Main$$Lambda$ByteBuddy$4.accept(Unknown Source)
+                class: io.type.pollution.example.I2
+                count: 1417207
 --------------------------
 2:      io.type.pollution.example.C
-Count:  3642662
+Count:  4804011
 Types:
         io.type.pollution.example.I2
         io.type.pollution.example.I1
 Traces:
-        io.type.pollution.example.Main.castToI2(Main.java:83)
-                class: io.type.pollution.example.I2
-                count: 1836278
-        io.type.pollution.example.Main.castToI1(Main.java:79)
+        io.type.pollution.example.Main.castToI1(Main.java:85)
                 class: io.type.pollution.example.I1
-                count: 1806384
+                count: 2400934
+        io.type.pollution.example.Main.castToI2(Main.java:89)
+                class: io.type.pollution.example.I2
+                count: 1848168
+        io.type.pollution.example.Main$$Lambda$ByteBuddy$6.accept(Unknown Source)
+                class: io.type.pollution.example.I2
+                count: 554909
 --------------------------
 ```
 - **Count**: is the number of observed successful `checkcast`/`instanceof`/`Class::isAssignableFrom`/`Class::cast`/`Class::isInstance` 
@@ -110,38 +116,53 @@ And, the output will become:
 Type Pollution Statistics:
 --------------------------
 1:      io.type.pollution.example.B
-Count:  5364580
+Count:  6477753
 Types:
         io.type.pollution.example.I2
         io.type.pollution.example.I3
         io.type.pollution.example.I1
 Traces:
-        io.type.pollution.example.Main.goo(Main.java:71)
-                class: io.type.pollution.example.I2
-                count: 1822574
+        io.type.pollution.example.Main.goo(Main.java:74)
                 class: io.type.pollution.example.I3
-                count: 1800163
-        io.type.pollution.example.Main.foo(Main.java:66)
+                count: 1826427
+                class: io.type.pollution.example.I2
+                count: 1430748
+        io.type.pollution.example.Main.foo(Main.java:69)
                 class: io.type.pollution.example.I1
-                count: 1741843
+                count: 1803371
+        io.type.pollution.example.Main$$Lambda$ByteBuddy$4.accept(Unknown Source)
+                class: io.type.pollution.example.I2
+                count: 1417207
 Full Traces:
         --------------------------
-        io.type.pollution.example.Main.foo(Main.java:66)
-        io.type.pollution.example.Main.lambda$main$0(Main.java:55)
+        io.type.pollution.example.Main.goo(Main.java:74)
+        io.type.pollution.example.Main.lambda$main$0(Main.java:57)
+        io.type.pollution.example.Main$$Lambda$ByteBuddy$1/0x00000008001bf840.run(Unknown Source)
         java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
         java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
         java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
         java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
         java.base/java.lang.Thread.run(Thread.java:829)
         --------------------------
-        io.type.pollution.example.Main.goo(Main.java:71)
-        io.type.pollution.example.Main.lambda$main$0(Main.java:56)
+        io.type.pollution.example.Main$$Lambda$ByteBuddy$4/0x00000008001be440.accept(Unknown Source)
+        io.type.pollution.example.Main.consumeAsI2(Main.java:81)
+        io.type.pollution.example.Main.lambda$main$0(Main.java:58)
+        io.type.pollution.example.Main$$Lambda$ByteBuddy$1/0x00000008001bf840.run(Unknown Source)
         java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
         java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
         java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
         java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
         java.base/java.lang.Thread.run(Thread.java:829)
---------------------------        
+        --------------------------
+        io.type.pollution.example.Main.foo(Main.java:69)
+        io.type.pollution.example.Main.lambda$main$0(Main.java:56)
+        io.type.pollution.example.Main$$Lambda$ByteBuddy$1/0x00000008001bf840.run(Unknown Source)
+        java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+        java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+        java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+        java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+        java.base/java.lang.Thread.run(Thread.java:829)
+--------------------------           
 # Rest omitted for brevity....
 ```
 To reduce the performance impact due to collecting full stack traces for each execution, consider adding too

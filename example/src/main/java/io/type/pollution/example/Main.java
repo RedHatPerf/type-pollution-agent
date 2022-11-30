@@ -2,6 +2,7 @@ package io.type.pollution.example;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 interface I1 {
     void do1();
@@ -54,8 +55,10 @@ public class Main {
                 for (int j = 0; j != loopCount; j++) {
                     foo(b);
                     goo(b);
+                    consumeAsI2(I2::do2, b);
                     castToI1(c);
                     castToI2(c);
+                    consumeAsI2(I2::do2, c);
                 }
             });
         }
@@ -74,6 +77,9 @@ public class Main {
         return false;
     }
 
+    public static void consumeAsI2(Consumer<I2> innocentConsumer, I2 i) {
+        innocentConsumer.accept(i);
+    }
 
     public static void castToI1(Object o) {
         I1.class.cast(o).do1();

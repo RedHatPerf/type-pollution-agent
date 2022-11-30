@@ -56,6 +56,7 @@ public class Agent {
         new AgentBuilder.Default()
                 .with(AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly())
                 .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
+                .with(AgentBuilder.LambdaInstrumentationStrategy.ENABLED)
                 .with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
                 .type(acceptedTypes
                         .and(not(nameStartsWith("net.bytebuddy.")))

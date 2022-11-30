@@ -27,9 +27,13 @@ public class ByteBuddyUtils {
 
         private String trace() {
             if (tracePrefix == null) {
-                tracePrefix = classDescriptor.replace('/', '.') + "." + methodName + "(" + classFile;
+                tracePrefix = classDescriptor.replace('/', '.') + "." + methodName + "(" + (classFile != null ? classFile : "Unknown Source)");
             }
-            return tracePrefix + ":" + line + ")";
+            if (classFile != null) {
+                return tracePrefix + ":" + line + ")";
+            } else {
+                return tracePrefix;
+            }
         }
 
         @Override

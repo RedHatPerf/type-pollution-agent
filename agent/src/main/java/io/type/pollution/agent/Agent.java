@@ -128,7 +128,7 @@ public class Agent {
             LAST_REPORT = true;
         }
         AtomicInteger rowId = new AtomicInteger();
-        StringBuilder summary = new StringBuilder("--------------------------\nType Pollution Statistics:\n");
+        StringBuilder summary = new StringBuilder("--------------------------\nType Pollution Statistics:\n--------------------------\n");
         summary.append("Date:\t").append(REPORT_TIMESTAMP.format(LocalDateTime.now())).append('\n');
         summary.append("Last:\t").append(last).append('\n');
         TraceInstanceOf.orderedSnapshot(TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
@@ -159,52 +159,59 @@ public class Agent {
         });
         if (rowId.get() > 0) {
             summary.append("--------------------------\n");
-            System.out.println(summary);
-            if (DUMP_ERROR) {
+            if (DUMP_ERROR || FILE_DUMP == null) {
+                System.out.println(summary);
                 return;
             }
-            if (FILE_DUMP != null) {
-                if (DUMP == null) {
-                    try {
-                        DUMP = FileChannel.open(Paths.get(FILE_DUMP), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-                        DUMP_TMP_BUFFER = ByteBuffer.allocateDirect(summary.length());
-                    } catch (IOException e) {
-                        System.err.println("ERROR while creating the Type Pollution Statistics dump to " + FILE_DUMP + " due to: " + e);
-                        DUMP_ERROR = true;
-                        DUMP_TMP_BUFFER = null;
-                        DUMP = null;
-                        return;
-                    }
-                }
-                if (DUMP_TMP_BUFFER.capacity() < summary.length()) {
-                    DUMP_TMP_BUFFER = ByteBuffer.allocateDirect(summary.length());
-                }
-                DUMP_TMP_BUFFER.clear().limit(summary.length());
-                // latin encoding rocks for the report, let's keep it simple
-                for (int i = 0; i < summary.length(); i++) {
-                    DUMP_TMP_BUFFER.put(i, (byte) summary.charAt(i));
-                }
+            if (DUMP == null) {
                 try {
-                    DUMP.write(DUMP_TMP_BUFFER);
+                    DUMP = FileChannel.open(Paths.get(FILE_DUMP), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+                    DUMP_TMP_BUFFER = ByteBuffer.allocateDirect(summary.length());
                 } catch (IOException e) {
-                    System.err.println("ERROR while dumping the Type Pollution Statistics to " + FILE_DUMP + " due to: " + e);
+                    System.err.println("ERROR while creating the Type Pollution Statistics dump to " + FILE_DUMP + " due to: " + e);
                     DUMP_ERROR = true;
                     DUMP_TMP_BUFFER = null;
-                    closeDump();
+                    DUMP = null;
+                    System.out.println(summary);
                     return;
                 }
-                if (last) {
-                    closeDump();
+            }
+            if (DUMP_TMP_BUFFER.capacity() < summary.length()) {
+                DUMP_TMP_BUFFER = ByteBuffer.allocateDirect(summary.length());
+            }
+            DUMP_TMP_BUFFER.clear().limit(summary.length());
+            // latin encoding rocks for the report, let's keep it simple
+            for (int i = 0; i < summary.length(); i++) {
+                DUMP_TMP_BUFFER.put(i, (byte) summary.charAt(i));
+            }
+            try {
+                DUMP.write(DUMP_TMP_BUFFER);
+            } catch (IOException e) {
+                System.err.println("ERROR while dumping the Type Pollution Statistics to " + FILE_DUMP + " due to: " + e);
+                DUMP_ERROR = true;
+                DUMP_TMP_BUFFER = null;
+                if (!closeDump()) {
+                    System.out.println(summary);
+                }
+                return;
+            }
+            if (last) {
+                if (!closeDump()) {
+                    System.out.println(summary);
                 }
             }
         }
     }
 
-    private static void closeDump() {
+    private static boolean closeDump() {
         try {
             DUMP.close();
+            return true;
         } catch (IOException ex) {
+            DUMP_ERROR = true;
+            DUMP_TMP_BUFFER = null;
             System.err.println("ERROR while closing the Type Pollution Statistics dump on " + FILE_DUMP + " due to: " + ex);
+            return false;
         } finally {
             DUMP = null;
         }

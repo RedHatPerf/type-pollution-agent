@@ -46,7 +46,7 @@ public class Main {
 
     public static void main(String[] args) {
         int numThreads = 2;
-        int loopCount = 1_000_000;
+        int loopCount = 1_000_000_000;
         ExecutorService es = Executors.newFixedThreadPool(numThreads);
         I3 b = new B();
         I3 c = new C();

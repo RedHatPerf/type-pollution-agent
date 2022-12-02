@@ -28,6 +28,7 @@ public class Agent {
     private static final int TYPE_UPDATE_COUNT_MIN =  Integer.getInteger("io.type.pollution.count.min", 10);
     private static final int TRACING_DELAY_SECS =  Integer.getInteger("io.type.pollution.delay", 0);
     private static final Long REPORT_INTERVAL_SECS =  Long.getLong("io.type.pollution.report.interval");
+    private static final boolean ENABLE_LAMBDA_INSTRUMENTATION = Boolean.getBoolean("io.type.pollution.lambda");
 
 
     public static void premain(String agentArgs, Instrumentation inst) {
@@ -56,7 +57,9 @@ public class Agent {
         new AgentBuilder.Default()
                 .with(AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly())
                 .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
-                .with(AgentBuilder.LambdaInstrumentationStrategy.ENABLED)
+                .with(ENABLE_LAMBDA_INSTRUMENTATION ?
+                        AgentBuilder.LambdaInstrumentationStrategy.ENABLED :
+                        AgentBuilder.LambdaInstrumentationStrategy.DISABLED)
                 .with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
                 .type(acceptedTypes
                         .and(not(nameStartsWith("net.bytebuddy.")))

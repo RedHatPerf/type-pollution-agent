@@ -145,9 +145,19 @@ class AppendOnlyList<E> {
             if (remaining == 0) {
                 return;
             }
-            while ((currentChunk = currentChunk.next) == null) {
-                Thread.onSpinWait();
+            Chunk nextChunk = currentChunk.next;
+            if (nextChunk == null) {
+                final Chunk newChunk = new Chunk(currentChunk.id + 1, currentChunk);
+                if (nextChunk.trySetNext(newChunk)) {
+                    nextChunk = newChunk;
+                } else {
+                    // help GC
+                    newChunk.prev = null;
+                    nextChunk = currentChunk.next;
+                    assert nextChunk != null : "trySetNext can fail just if others succeed";
+                }
             }
+            currentChunk = nextChunk;
         }
     }
 

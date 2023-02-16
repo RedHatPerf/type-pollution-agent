@@ -22,7 +22,7 @@ $ ./profiler.sh -d 10 -t -f out.html -e cpu <Java pid>
 ```
 we get
 
-[![async-profiler per-thread generated flame graph](images/async/async-profiler.png)](https://htmlpreview.github.io/?https://github.com/RedHatPerf/type-pollution-agent/blob/face-to-face/benchmarks/images/async/async-profiler.html)
+[![async-profiler per-thread generated flame graph](images/async/async-profiler.png)](https://htmlpreview.github.io/?https://github.com/RedHatPerf/type-pollution-agent/blob/master/benchmarks/images/async/async-profiler.html)
 
 That's not terribly useful, given that the blamed method doesn't match our expectation,
 but still give us a good hint that we're CPU limited:
@@ -287,7 +287,7 @@ $ ./profiler.sh -d 10 -t -f async-profiler.jfr -e cpu <Java pid>
 $ java -cp build/converter.jar jfr2flame --threads --lines async-profiler.jfr async-profiler-lines.html
 ```
 That correctly reports:
-[![async-profiler per-thread generated flame graph](images/async/async-profiler-lines.png)](https://htmlpreview.github.io/?https://github.com/RedHatPerf/type-pollution-agent/blob/face-to-face/benchmarks/images/async/async-profiler-lines.html)
+[![async-profiler per-thread generated flame graph](images/async/async-profiler-lines.png)](https://htmlpreview.github.io/?https://github.com/RedHatPerf/type-pollution-agent/blob/master/benchmarks/images/async/async-profiler-lines.html)
 
 
 

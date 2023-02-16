@@ -14,7 +14,7 @@ if it happens in the real world?
 Let's run an example (dumb) application that suffer from this issue:
 
 ```bash
-$ java -XX:+UnlockDiagnosticVMOptions -jar benchmarks/target/type-pollution-benchmarks-0.1-SNAPSHOT.jar 2   
+$ java -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -jar benchmarks/target/type-pollution-benchmarks-0.1-SNAPSHOT.jar 2   
 ```
 and attaching async-profiler to it with:
 ```bash
@@ -50,7 +50,7 @@ IPC is 0.5? IPC < 1 it usually means stalls presence.
 A quick check (spoiler; we already know it would report something useful :P)
 with [perf c2c](https://man7.org/linux/man-pages/man1/perf-c2c.1.html) it's a no-brain:
 ```bash
-$ timeout 20s perf c2c record -- --delay 10000 java -XX:+UnlockDiagnosticVMOptions -jar benchmarks/target/type-pollution-benchmarks-0.1-SNAPSHOT.jar 2
+$ timeout 20s perf c2c record -- --delay 10000 java -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -jar benchmarks/target/type-pollution-benchmarks-0.1-SNAPSHOT.jar 2
 Events disabled
 # ...10 seconds after...
 Events enabled

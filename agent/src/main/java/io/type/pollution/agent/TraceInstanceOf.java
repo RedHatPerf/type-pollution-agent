@@ -427,7 +427,7 @@ public class TraceInstanceOf {
 
     public static boolean traceIsInstance(Class interfaceClazz, Object o, String trace) {
         if (!interfaceClazz.isInstance(o)) {
-            if (isTracingStarted() && interfaceClazz.isInterface()) {
+            if (o != null && isTracingStarted() && interfaceClazz.isInterface()) {
                 MISS_COUNTER_CACHE.get(o.getClass()).onTypeCheckMiss(interfaceClazz, trace);
             }
             return false;
@@ -475,7 +475,7 @@ public class TraceInstanceOf {
 
     public static boolean traceInstanceOf(Object o, Class interfaceClazz, String trace) {
         if (!interfaceClazz.isInstance(o)) {
-            if (isTracingStarted() && interfaceClazz.isInterface()) {
+            if (o!= null && isTracingStarted() && interfaceClazz.isInterface()) {
                 MISS_COUNTER_CACHE.get(o.getClass()).onTypeCheckMiss(interfaceClazz, trace);
             }
             return false;

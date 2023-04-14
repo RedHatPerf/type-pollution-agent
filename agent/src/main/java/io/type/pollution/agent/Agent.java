@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.lang.instrument.Instrumentation;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
@@ -131,7 +130,7 @@ public class Agent {
         StringBuilder summary = new StringBuilder("--------------------------\nType Pollution Statistics:\n--------------------------\n");
         summary.append("Date:\t").append(REPORT_TIMESTAMP.format(LocalDateTime.now())).append('\n');
         summary.append("Last:\t").append(last).append('\n');
-        TraceInstanceOf.orderedSnapshot(TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
+        TraceInstanceOf.orderedTypePollutionCountersSnapshot(TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
             summary.append("--------------------------\n");
             summary.append(rowId.incrementAndGet()).append(":\t").append(snapshot.clazz.getName()).append('\n');
             summary.append("Count:\t").append(snapshot.updateCount).append('\n');
@@ -140,11 +139,11 @@ public class Agent {
                 summary.append("\t").append(seen.getName()).append('\n');
             }
             summary.append("Traces:\n");
-            for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot stack : snapshot.traces) {
+            for (TraceInstanceOf.TraceCounter.Snapshot.TraceSnapshot stack : snapshot.traces) {
                 summary.append("\t").append(stack.trace).append('\n');
-                for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot.ClassUpdateCount count : stack.interfaceSeenCounters) {
+                for (TraceInstanceOf.TraceCounter.Snapshot.TraceSnapshot.ClassCount count : stack.interfaceSeenCounters) {
                     summary.append("\t\tclass: ").append(count.interfaceClazz.getName()).append('\n');
-                    summary.append("\t\tcount: ").append(count.updateCount).append('\n');
+                    summary.append("\t\tcount: ").append(count.count).append('\n');
                 }
             }
             if (ENABLE_FULL_STACK_TRACES) {

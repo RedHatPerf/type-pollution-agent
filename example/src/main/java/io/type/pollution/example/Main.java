@@ -1,5 +1,6 @@
 package io.type.pollution.example;
 
+import java.io.Serializable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -14,6 +15,14 @@ interface I2 {
 }
 
 interface I3 extends I1, I2 {
+}
+
+class A implements I1 {
+
+    @Override
+    public void do1() {
+
+    }
 }
 
 class B implements I3 {
@@ -48,6 +57,7 @@ public class Main {
         int numThreads = 2;
         int loopCount = 1_000_000_000;
         ExecutorService es = Executors.newFixedThreadPool(numThreads);
+        Object a = new A();
         I3 b = new B();
         I3 c = new C();
         for (int i = 0; i != numThreads; i++) {
@@ -59,10 +69,17 @@ public class Main {
                     castToI1(c);
                     castToI2(c);
                     consumeAsI2(I2::do2, c);
+                    tryCastTo(a, I2.class);
                 }
             });
         }
         es.shutdown();
+    }
+
+    public static void tryCastTo(Object o, Class toCast) {
+        if (toCast.isInstance(o)) {
+            toCast.cast(o);
+        }
     }
 
     public static boolean foo(I3 i) {

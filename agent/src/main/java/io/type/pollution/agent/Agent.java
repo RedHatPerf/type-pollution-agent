@@ -16,14 +16,13 @@ import java.io.IOException;
 import java.lang.instrument.Instrumentation;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static net.bytebuddy.matcher.ElementMatchers.*;
 
@@ -36,6 +35,7 @@ public class Agent {
     private static final int FULL_STACK_TRACES_SAMPLING_PERIOD_MS = Integer.getInteger("io.type.pollution.full.traces.ms", 0);
     static final int FULL_STACK_TRACES_LIMIT = Integer.getInteger("io.type.pollution.full.traces.limit", 20);
     private static final int TYPE_UPDATE_COUNT_MIN = Integer.getInteger("io.type.pollution.count.min", 10);
+    private static final int TYPE_MISS_COUNT_MIN = Integer.getInteger("io.type.pollution.miss.count.min", 1);
     private static final int TRACING_DELAY_SECS = Integer.getInteger("io.type.pollution.delay", 0);
     private static final Long REPORT_INTERVAL_SECS = Long.getLong("io.type.pollution.report.interval");
     private static final boolean ENABLE_LAMBDA_INSTRUMENTATION = Boolean.getBoolean("io.type.pollution.lambda");
@@ -120,6 +120,42 @@ public class Agent {
 
     private static boolean LAST_REPORT = false;
 
+    private static CharSequence reportOf(Collection<TraceInstanceOf.TraceCounter.Snapshot> counters) {
+        if (counters.isEmpty()) {
+            return "";
+        }
+        StringBuilder report = new StringBuilder();
+        int rowId = 0;
+        for (TraceInstanceOf.TraceCounter.Snapshot counter : counters) {
+            report.append("--------------------------\n");
+            rowId++;
+            report.append(rowId).append(":\t").append(counter.clazz.getName()).append('\n');
+            report.append("Count:\t").append(counter.updateCount).append('\n');
+            report.append("Types:\n");
+            for (Class<?> seen : counter.seen) {
+                report.append("\t").append(seen.getName()).append('\n');
+            }
+            report.append("Traces:\n");
+            for (TraceInstanceOf.TraceCounter.Snapshot.TraceSnapshot stack : counter.traces) {
+                report.append("\t").append(stack.trace).append('\n');
+                for (TraceInstanceOf.TraceCounter.Snapshot.TraceSnapshot.ClassCount count : stack.interfaceSeenCounters) {
+                    report.append("\t\tclass: ").append(count.interfaceClazz.getName()).append('\n');
+                    report.append("\t\tcount: ").append(count.count).append('\n');
+                }
+            }
+            if (ENABLE_FULL_STACK_TRACES) {
+                report.append("Full Traces:\n");
+                for (StackTraceElement[] fullFrames : counter.fullStackFrames) {
+                    report.append("\t--------------------------\n");
+                    for (StackTraceElement frame : fullFrames) {
+                        report.append("\t").append(frame).append('\n');
+                    }
+                }
+            }
+        }
+        return report;
+    }
+
     private static void printReport(boolean last) {
         if (LAST_REPORT) {
             return;
@@ -127,37 +163,21 @@ public class Agent {
         if (last) {
             LAST_REPORT = true;
         }
-        AtomicInteger rowId = new AtomicInteger();
-        StringBuilder summary = new StringBuilder("--------------------------\nType Pollution Statistics:\n--------------------------\n");
+        StringBuilder summary = new StringBuilder("--------------------------\nType Check Statistics:\n--------------------------\n");
         summary.append("Date:\t").append(REPORT_TIMESTAMP.format(LocalDateTime.now())).append('\n');
         summary.append("Last:\t").append(last).append('\n');
-        TraceInstanceOf.orderedSnapshot(TYPE_UPDATE_COUNT_MIN).forEach(snapshot -> {
-            summary.append("--------------------------\n");
-            summary.append(rowId.incrementAndGet()).append(":\t").append(snapshot.clazz.getName()).append('\n');
-            summary.append("Count:\t").append(snapshot.updateCount).append('\n');
-            summary.append("Types:\n");
-            for (Class<?> seen : snapshot.seen) {
-                summary.append("\t").append(seen.getName()).append('\n');
-            }
-            summary.append("Traces:\n");
-            for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot stack : snapshot.traces) {
-                summary.append("\t").append(stack.trace).append('\n');
-                for (TraceInstanceOf.UpdateCounter.Snapshot.TraceSnapshot.ClassUpdateCount count : stack.interfaceSeenCounters) {
-                    summary.append("\t\tclass: ").append(count.interfaceClazz.getName()).append('\n');
-                    summary.append("\t\tcount: ").append(count.updateCount).append('\n');
-                }
-            }
-            if (ENABLE_FULL_STACK_TRACES) {
-                summary.append("Full Traces:\n");
-                for (StackTraceElement[] fullFrames : snapshot.fullStackFrames) {
-                    summary.append("\t--------------------------\n");
-                    for (StackTraceElement frame : fullFrames) {
-                        summary.append("\t").append(frame).append('\n');
-                    }
-                }
-            }
-        });
-        if (rowId.get() > 0) {
+        CharSequence typePollutionReport = reportOf(TraceInstanceOf.orderedTypePollutionCountersSnapshot(TYPE_UPDATE_COUNT_MIN));
+        if (typePollutionReport.length() > 0) {
+            summary.append("--------------------------\nType Pollution:\n");
+            summary.append(typePollutionReport);
+        }
+        CharSequence missReport = reportOf(TraceInstanceOf.orderedMissCountersSnapshot(TYPE_MISS_COUNT_MIN));
+        if (missReport.length() > 0) {
+            summary.append("--------------------------\nMiss:\n");
+            summary.append(missReport);
+        }
+        boolean emptyReports = typePollutionReport.length() == 0 && missReport.length() == 0;
+        if (!emptyReports) {
             summary.append("--------------------------\n");
             if (DUMP_ERROR || FILE_DUMP == null) {
                 System.out.println(summary);

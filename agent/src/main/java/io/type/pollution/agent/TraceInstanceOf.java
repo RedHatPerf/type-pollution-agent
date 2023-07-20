@@ -193,7 +193,7 @@ public class TraceInstanceOf {
             public boolean addFullStackTrace() {
                 // this is not nice :( we KNOW which level we are so can hard-code this
                 // but is brittle, and it depends on where the trace collection happens
-                final int START_STACK = 4;
+                final int START_STACK = 5;
                 StackTraceElement[] stackTraces = Thread.currentThread().getStackTrace();
                 final int stackTraceMaxDepth;
                 if (Agent.FULL_STACK_TRACES_LIMIT <= 0) {
